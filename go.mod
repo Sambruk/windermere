@@ -5,6 +5,7 @@ go 1.16
 replace github.com/Sambruk/windermere => /home/joe/git/windermere
 
 require (
+	github.com/denisenkom/go-mssqldb v0.11.0
 	github.com/google/renameio v1.0.1
 	github.com/jmoiron/sqlx v1.3.4
 	github.com/joesiltberg/bowness v0.0.0-20210215135155-e91ad100ee97

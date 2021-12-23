@@ -27,6 +27,7 @@ import (
 
 	"github.com/Sambruk/windermere/scimserverlite"
 	"github.com/Sambruk/windermere/ss12000v1"
+	_ "github.com/denisenkom/go-mssqldb"
 	"github.com/google/renameio"
 	"github.com/jmoiron/sqlx"
 	_ "modernc.org/sqlite"
