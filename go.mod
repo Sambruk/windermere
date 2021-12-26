@@ -2,8 +2,6 @@ module github.com/Sambruk/windermere
 
 go 1.16
 
-replace github.com/Sambruk/windermere => /home/joe/git/windermere
-
 require (
 	github.com/denisenkom/go-mssqldb v0.11.0
 	github.com/google/renameio v1.0.1
