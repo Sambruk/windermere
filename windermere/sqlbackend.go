@@ -102,29 +102,29 @@ var migrations = [...]string{
 	INSERT INTO windermere_meta (version) VALUES (1);
 	
 	CREATE TABLE Users (
-		tenant TEXT NOT NULL,
-		id TEXT NOT NULL,
-		userName TEXT NOT NULL,
-		familyName TEXT NOT NULL,
-		givenName TEXT NOT NULL,
-		displayName TEXT NOT NULL,
+		tenant NVARCHAR(255) NOT NULL,
+		id VARCHAR(36) NOT NULL,
+		userName NTEXT NOT NULL,
+		familyName NTEXT NOT NULL,
+		givenName NTEXT NOT NULL,
+		displayName NTEXT NOT NULL,
 		PRIMARY KEY (tenant, id)
 	);
 
 	CREATE TABLE Emails (
-		tenant TEXT NOT NULL,
-		userId TEXT NOT NULL,
-		value TEXT NOT NULL,
-		type TEXT NULL,
+		tenant NVARCHAR(255) NOT NULL,
+		userId VARCHAR(36) NOT NULL,
+		value NTEXT NOT NULL,
+		type NTEXT NULL,
 		FOREIGN KEY (tenant, userId) REFERENCES Users(tenant, id) ON DELETE CASCADE
 	);
 
 	CREATE INDEX EmailsIdx ON Emails (tenant, userId);
 
 	CREATE TABLE Enrolments (
-		tenant TEXT NOT NULL,
-		userId TEXT NOT NULL,
-		value TEXT NOT NULL,
+		tenant NVARCHAR(255) NOT NULL,
+		userId VARCHAR(36) NOT NULL,
+		value VARCHAR(36) NOT NULL,
 		schoolYear TINYINT NULL,
 		FOREIGN KEY (tenant, userId) REFERENCES Users(tenant, id) ON DELETE CASCADE
 	);
@@ -132,88 +132,88 @@ var migrations = [...]string{
 	CREATE INDEX EnrolmentsIdx ON Enrolments (tenant, userId);
 
 	CREATE TABLE StudentGroups (
-		tenant TEXT NOT NULL,
-		id TEXT NOT NULL,
-		displayName TEXT NOT NULL,
-		owner TEXT NOT NULL,
-		studentGroupType TEXT NULL,
+		tenant NVARCHAR(255) NOT NULL,
+		id VARCHAR(36) NOT NULL,
+		displayName NTEXT NOT NULL,
+		owner VARCHAR(36) NOT NULL,
+		studentGroupType NTEXT NULL,
 		PRIMARY KEY (tenant, id)				
 	);
 
 	CREATE TABLE StudentMemberships (
-		tenant TEXT NOT NULL,
-		groupId TEXT NOT NULL,
-		userId TEXT NOT NULL,
+		tenant NVARCHAR(255) NOT NULL,
+		groupId VARCHAR(36) NOT NULL,
+		userId VARCHAR(36) NOT NULL,
 		FOREIGN KEY (tenant, groupId) REFERENCES StudentGroups(tenant, id) ON DELETE CASCADE
 	);
 
 	CREATE INDEX StudentMembershipsIdx ON StudentMemberships (tenant, groupId);
 
 	CREATE TABLE Organisations (
-		tenant TEXT NOT NULL,
-		id TEXT NOT NULL,
-		displayName TEXT NOT NULL,
+		tenant NVARCHAR(255) NOT NULL,
+		id VARCHAR(36) NOT NULL,
+		displayName NTEXT NOT NULL,
 		PRIMARY KEY (tenant, id)
 	);
 
 	CREATE TABLE SchoolUnitGroups (
-		tenant TEXT NOT NULL,
-		id TEXT NOT NULL,
-		displayName TEXT NOT NULL,
+		tenant NVARCHAR(255) NOT NULL,
+		id VARCHAR(36) NOT NULL,
+		displayName NTEXT NOT NULL,
 		PRIMARY KEY (tenant, id)
 	);
 
 	CREATE TABLE SchoolUnits (
-		tenant TEXT NOT NULL,
-		id TEXT NOT NULL,
-		displayName TEXT NOT NULL,
-		schoolUnitCode TEXT NOT NULL,
-		organisation TEXT NULL,
-		schoolUnitGroup TEXT NULL,
-		municipalityCode TEXT NULL,
+		tenant NVARCHAR(255) NOT NULL,
+		id VARCHAR(36) NOT NULL,
+		displayName NTEXT NOT NULL,
+		schoolUnitCode NTEXT NOT NULL,
+		organisation VARCHAR(36) NULL,
+		schoolUnitGroup VARCHAR(36) NULL,
+		municipalityCode NTEXT NULL,
 		PRIMARY KEY (tenant, id)
 	);
 
 	CREATE TABLE SchoolTypes (
-		tenant TEXT NOT NULL,
-		schoolUnitId TEXT NOT NULL,
-		schoolType TEXT NOT NULL,
+		tenant NVARCHAR(255) NOT NULL,
+		schoolUnitId VARCHAR(36) NOT NULL,
+		schoolType NTEXT NOT NULL,
 		FOREIGN KEY (tenant, schoolUnitId) REFERENCES SchoolUnits(tenant, id) ON DELETE CASCADE
 	);
 
 	CREATE INDEX SchoolTypesIdx ON SchoolTypes (tenant, schoolUnitId);
 
 	CREATE TABLE Employments (
-		tenant TEXT NOT NULL,
-		id TEXT NOT NULL,
-		employedAt TEXT NOT NULL,
-		user TEXT NOT NULL,
-		employmentRole TEXT NOT NULL,
-		signature TEXT NULL,
+		tenant NVARCHAR(255) NOT NULL,
+		id VARCHAR(36) NOT NULL,
+		employedAt VARCHAR(36) NOT NULL,
+		[user] VARCHAR(36) NOT NULL,
+		employmentRole NTEXT NOT NULL,
+		signature NTEXT NULL,
 		PRIMARY KEY (tenant, id)
 	);
 
 	CREATE TABLE Activities (
-		tenant TEXT NOT NULL,
-		id TEXT NOT NULL,
-		displayName TEXT NOT NULL,
-		owner TEXT NOT NULL,
+		tenant NVARCHAR(255) NOT NULL,
+		id VARCHAR(36) NOT NULL,
+		displayName NTEXT NOT NULL,
+		owner VARCHAR(36) NOT NULL,
 		PRIMARY KEY (tenant, id)
 	);
 
 	CREATE TABLE ActivityTeachers (
-		tenant TEXT NOT NULL,
-		activityId TEXT NOT NULL,
-		employmentId TEXT NOT NULL,
+		tenant NVARCHAR(255) NOT NULL,
+		activityId VARCHAR(36) NOT NULL,
+		employmentId VARCHAR(36) NOT NULL,
 		FOREIGN KEY (tenant, activityId) REFERENCES Activities(tenant, id) ON DELETE CASCADE
 	);
 
 	CREATE INDEX ActivityTeachersIdx ON ActivityTeachers (tenant, activityId);
 
 	CREATE TABLE ActivityGroups (
-		tenant TEXT NOT NULL,
-		activityId TEXT NOT NULL,
-		groupId TEXT NOT NULL,
+		tenant NVARCHAR(255) NOT NULL,
+		activityId VARCHAR(36) NOT NULL,
+		groupId VARCHAR(36) NOT NULL,
 		FOREIGN KEY (tenant, activityId) REFERENCES Activities(tenant, id) ON DELETE CASCADE
 	);
 

@@ -53,14 +53,14 @@ func NewEmploymentRow(tenant string, employment *ss12000v1.Employment) dbEmploym
 func (backend *SQLBackend) employmentCreator(tx *sqlx.Tx, tenant string, employment *ss12000v1.Employment) (id string, err error) {
 	dbEmployment := NewEmploymentRow(tenant, employment)
 
-	_, err = tx.NamedExec(`INSERT INTO Employments (tenant, id, employedAt, user, employmentRole, signature) VALUES (:tenant, :id, :employedAt, :user, :employmentRole, :signature)`, &dbEmployment)
+	_, err = tx.NamedExec(`INSERT INTO Employments (tenant, id, employedAt, [user], employmentRole, signature) VALUES (:tenant, :id, :employedAt, :user, :employmentRole, :signature)`, &dbEmployment)
 	return employment.GetID(), err
 }
 
 func (backend *SQLBackend) employmentMutator(tx *sqlx.Tx, tenant string, employment *ss12000v1.Employment) (err error) {
 	dbEmployment := NewEmploymentRow(tenant, employment)
 
-	_, err = tx.NamedExec(`UPDATE Employments SET employedAt = :employedAt, user = :user, employmentRole = :employmentRole, signature = :signature WHERE tenant = :tenant AND id = :id`, &dbEmployment)
+	_, err = tx.NamedExec(`UPDATE Employments SET employedAt = :employedAt, [user] = :user, employmentRole = :employmentRole, signature = :signature WHERE tenant = :tenant AND id = :id`, &dbEmployment)
 	return
 }
 
