@@ -42,14 +42,20 @@ StorageSource: storage.db
 
 Replace path names as appropriate.
 
-The StorageType specifies with SQL driver to use. Depending on which driver
-is used, the StorageSource has a different format for specifying access to
-the database. For SQLite you can simply specify a filename.
+The StorageType specifies with SQL driver to use. Currently included drivers
+are:
+
+ * sqlite (SQLite)
+ * sqlserver (Microsoft SQL Server)
+
+Depending on which driver is used, the StorageSource has a different format
+for specifying access to the database. For SQLite you can simply specify a
+filename.
 
 Example for SQL Server:
 
 ```
-sqlserver://<user>:<passwd>@<host>/<database>
+sqlserver://<user>:<passwd>@<host>?database=<database>
 ```
 
 ### Building
