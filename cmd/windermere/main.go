@@ -175,6 +175,11 @@ func main() {
 		log.Printf("Failed to gracefully shutdown server: %v", err)
 	}
 
+	err = wind.Shutdown()
+	if err != nil {
+		log.Printf("Failed to gracefully shutdown Windermere: %v", err)
+	}
+
 	log.Printf("Server closed, waiting for metadata store to close...")
 	mdstore.Quit()
 

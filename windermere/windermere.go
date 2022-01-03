@@ -43,6 +43,10 @@ func (wind *Windermere) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	wind.server.ServeHTTP(w, r)
 }
 
+func (wind *Windermere) Shutdown() error {
+	return wind.Save()
+}
+
 func New(backingType, backingSource string, tenantGetter scimserverlite.TenantGetter) (*Windermere, error) {
 	var b scimserverlite.Backend
 	if backingType == "file" {
