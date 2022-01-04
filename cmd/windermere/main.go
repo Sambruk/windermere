@@ -110,7 +110,7 @@ func main() {
 	}
 
 	tenantGetter := func(c context.Context) string {
-		return server.EntityIDFromContext(c)
+		return server.NormalizedEntityIDFromContext(c)
 	}
 
 	wind, err := windermere.New(viper.GetString("StorageType"), viper.GetString("StorageSource"), tenantGetter)
