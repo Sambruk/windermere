@@ -87,22 +87,27 @@ const (
 )
 
 func main() {
-	viper.SetDefault(CNFMDURL, "https://fed.skolfederation.se/prod/md/kontosynk.jws")
-	viper.SetDefault(CNFMDDefaultCacheTTL, 3600)
-	viper.SetDefault(CNFMDNetworkRetry, 60)
-	viper.SetDefault(CNFMDBadContentRetry, 3600)
-	viper.SetDefault(CNFReadHeaderTimeout, 5)
-	viper.SetDefault(CNFReadTimeout, 20)
-	viper.SetDefault(CNFWriteTimeout, 40)
-	viper.SetDefault(CNFIdleTimeout, 60)
-	viper.SetDefault(CNFBackendTimeout, 30)
-	viper.SetDefault(CNFEnableLimiting, false)
-	viper.SetDefault(CNFLimitRequestsPerSecond, 10.0)
-	viper.SetDefault(CNFLimitBurst, 50)
-	viper.SetDefault(CNFStorageType, "file")
-	viper.SetDefault(CNFStorageSource, "SS12000.json")
-	viper.SetDefault(CNFAccessLogPath, "")
-
+	// Configuration defaults
+	defaults := map[string]interface{}{
+		CNFMDURL:                  "https://fed.skolfederation.se/prod/md/kontosynk.jws",
+		CNFMDDefaultCacheTTL:      3600,
+		CNFMDNetworkRetry:         60,
+		CNFMDBadContentRetry:      3600,
+		CNFReadHeaderTimeout:      5,
+		CNFReadTimeout:            20,
+		CNFWriteTimeout:           40,
+		CNFIdleTimeout:            60,
+		CNFBackendTimeout:         30,
+		CNFEnableLimiting:         false,
+		CNFLimitRequestsPerSecond: 10.0,
+		CNFLimitBurst:             50,
+		CNFStorageType:            "file",
+		CNFStorageSource:          "SS12000.json",
+		CNFAccessLogPath:          "",
+	}
+	for key, value := range defaults {
+		viper.SetDefault(key, value)
+	}
 	flag.Parse()
 
 	if flag.NArg() < 1 {
