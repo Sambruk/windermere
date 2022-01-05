@@ -43,6 +43,7 @@ func must(err error) {
 	}
 }
 
+// Verifies that certain parameters are set in the configuration file
 func verifyRequired(keys ...string) {
 	for _, key := range keys {
 		if !viper.IsSet(key) {
@@ -51,10 +52,13 @@ func verifyRequired(keys ...string) {
 	}
 }
 
+// Convenience method for getting a configuration parameter that
+// specifies a duration in seconds.
 func configuredSeconds(setting string) time.Duration {
 	return time.Duration(viper.GetInt(setting)) * time.Second
 }
 
+// Blocks until we get a signal to shut down
 func waitForShutdownSignal() {
 	signals := make(chan os.Signal)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
@@ -122,6 +126,7 @@ func main() {
 
 	verifyRequired(CNFJWKSPath, CNFMDCachePath, CNFCert, CNFKey, CNFListenAddress)
 
+	// Setup federated TLS metadata store
 	mdstore := fedtls.NewMetadataStore(
 		viper.GetString(CNFMDURL),
 		viper.GetString(CNFJWKSPath),
@@ -133,23 +138,30 @@ func main() {
 	certFile := viper.GetString(CNFCert)
 	keyFile := viper.GetString(CNFKey)
 
+	// The TLS config manager is used by the tls.Listener below to configure
+	// TLS according to the TLS federation.
 	mdTLSConfigManager, err := server.NewMetadataTLSConfigManager(certFile, keyFile, mdstore)
 
 	if err != nil {
 		log.Fatalf("Failed to create TLS configuration: %v", err)
 	}
 
+	// Windermere needs a function to get the currently authenticated
+	// SCIM tenant from the current Context.
 	tenantGetter := func(c context.Context) string {
 		return server.NormalizedEntityIDFromContext(c)
 	}
 
+	// Create the Windermere SCIM handler
 	wind, err := windermere.New(viper.GetString(CNFStorageType), viper.GetString(CNFStorageSource), tenantGetter)
-	var handler http.Handler
-	handler = wind
 
 	if err != nil {
 		log.Fatalf("Failed to initialize Windermere: %v", err)
 	}
+
+	// Setup various middlware handlers between Windermere and the http.Server
+	var handler http.Handler
+	handler = wind
 
 	enableLimiting := viper.GetBool(CNFEnableLimiting)
 
@@ -169,6 +181,7 @@ func main() {
 		handler = accessLogHandler(handler, accessLogPath, tenantGetter)
 	}
 
+	// Create the HTTP server
 	srv := &http.Server{
 		// Wrap the HTTP handler with authentication middleware.
 		Handler: server.AuthMiddleware(handler, mdstore),
@@ -193,6 +206,7 @@ func main() {
 		log.Fatalf("Failed to listen to %s (%v)", address, err)
 	}
 
+	// Start the HTTP server
 	go func() {
 		err := srv.Serve(listener)
 
