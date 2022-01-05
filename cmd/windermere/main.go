@@ -25,6 +25,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -88,6 +89,11 @@ const (
 	CNFCert                   = "Cert"
 	CNFKey                    = "Key"
 	CNFListenAddress          = "ListenAddress"
+	CNFAdminListenAddress     = "AdminListenAddress"
+	CNFMDEntityID             = "MetadataEntityID"
+	CNFMDBaseURI              = "MetadataBaseURI"
+	CNFMDOrganization         = "MetadataOrganization"
+	CNFMDOrganizationID       = "MetadataOrganizationID"
 )
 
 func main() {
@@ -108,6 +114,7 @@ func main() {
 		CNFStorageType:            "file",
 		CNFStorageSource:          "SS12000.json",
 		CNFAccessLogPath:          "",
+		CNFAdminListenAddress:     "",
 	}
 	for key, value := range defaults {
 		viper.SetDefault(key, value)
@@ -124,7 +131,8 @@ func main() {
 
 	must(viper.ReadInConfig())
 
-	verifyRequired(CNFJWKSPath, CNFMDCachePath, CNFCert, CNFKey, CNFListenAddress)
+	verifyRequired(CNFJWKSPath, CNFMDCachePath, CNFCert, CNFKey, CNFListenAddress,
+		CNFMDEntityID, CNFMDBaseURI, CNFMDOrganization, CNFMDOrganizationID)
 
 	// Setup federated TLS metadata store
 	mdstore := fedtls.NewMetadataStore(
@@ -206,7 +214,7 @@ func main() {
 		log.Fatalf("Failed to listen to %s (%v)", address, err)
 	}
 
-	// Start the HTTP server
+	// Start the main HTTP server
 	go func() {
 		err := srv.Serve(listener)
 
@@ -214,6 +222,17 @@ func main() {
 			log.Fatalf("Unexpected server exit: %v", err)
 		}
 	}()
+
+	// Possibly start the admin HTTP server
+	adminAddress := viper.GetString(CNFAdminListenAddress)
+	if adminAddress != "" {
+		http.Handle("/metadata", metadataHandler(certFile,
+			viper.GetString(CNFMDEntityID), viper.GetString(CNFMDBaseURI),
+			viper.GetString(CNFMDOrganization), viper.GetString(CNFMDOrganizationID)))
+		go func() {
+			log.Println(http.ListenAndServeTLS(adminAddress, certFile, keyFile, nil))
+		}()
+	}
 
 	waitForShutdownSignal()
 

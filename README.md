@@ -27,20 +27,34 @@ config file, for instance named config.yaml.
 You can start with the following example:
 
 ```
+# Configuration of the authentication federation and metadata
 MetadataURL: https://fed.skolfederation.se/trial/md/kontosynk.jws
 JWKSPath: /home/joe/windermere/jwks.trial
 MetadataCachePath: /home/joe/windermere/metadata-cache.json
+
+# Information to be published about this server in the
+# federation metadata.
+MetadataEntityID: https://egil.serviceprovider.com
+MetadataBaseURI: https://egil.serviceprovider.com
+MetadataOrganization: Service Provider Ltd.
+MetadataOrganizationID: SE1234567890
+
+# HTTP server settings
 Cert: /home/joe/windermere/cert.pem
 Key: /home/joe/windermere/key.pem
 ListenAddress: :443
+
+# Rate limiting
 EnableLimiting: true
-LimitRequestsPerSecond: 10
+LimitRequestsPerSecond: 20
 LimitBurst: 20
+
+# Storage backend
 StorageType: sqlite
 StorageSource: storage.db
 ```
 
-Replace path names as appropriate.
+Replace path names, and information about your organization as appropriate.
 
 The StorageType specifies with SQL driver to use. Currently included drivers
 are:
