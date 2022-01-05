@@ -145,6 +145,7 @@ func (w *Windermere) GetParsedResource(tenant, resourceType string, id string) (
 	return w.backend.GetParsedResource(tenant, resourceType, id)
 }
 
+// Loads the in-memory backend from file
 func loadSCIMBackend(backend *scimserverlite.InMemoryBackend, path string) error {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil
@@ -158,6 +159,7 @@ func loadSCIMBackend(backend *scimserverlite.InMemoryBackend, path string) error
 	return err
 }
 
+// Saves the in-memory backend to file
 func saveSCIMBackend(backend *scimserverlite.InMemoryBackend, path string) error {
 	serializedForm, err := backend.Serialize()
 
