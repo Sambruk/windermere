@@ -62,22 +62,46 @@ func waitForShutdownSignal() {
 	<-signals
 }
 
+// Configuration parameters
+const (
+	CNFMDURL                  = "MetadataURL"
+	CNFMDDefaultCacheTTL      = "MetadataDefaultCacheTTL"
+	CNFMDNetworkRetry         = "MetadataNetworkRetry"
+	CNFMDBadContentRetry      = "MetadataBadContentRetry"
+	CNFMDCachePath            = "MetadataCachePath"
+	CNFReadHeaderTimeout      = "ReadHeaderTimeout"
+	CNFReadTimeout            = "ReadTimeout"
+	CNFWriteTimeout           = "WriteTimeout"
+	CNFIdleTimeout            = "IdleTimeout"
+	CNFBackendTimeout         = "BackendTimeout"
+	CNFEnableLimiting         = "EnableLimiting"
+	CNFLimitRequestsPerSecond = "LimitRequestsPerSecond"
+	CNFLimitBurst             = "LimitBurst"
+	CNFStorageType            = "StorageType"
+	CNFStorageSource          = "StorageSource"
+	CNFAccessLogPath          = "AccessLogPath"
+	CNFJWKSPath               = "JWKSPath"
+	CNFCert                   = "Cert"
+	CNFKey                    = "Key"
+	CNFListenAddress          = "ListenAddress"
+)
+
 func main() {
-	viper.SetDefault("MetadataURL", "https://fed.skolfederation.se/prod/md/kontosynk.jws")
-	viper.SetDefault("MetadataDefaultCacheTTL", 3600)
-	viper.SetDefault("MetadataNetworkRetry", 60)
-	viper.SetDefault("MetadataBadContentRetry", 3600)
-	viper.SetDefault("ReadHeaderTimeout", 5)
-	viper.SetDefault("ReadTimeout", 20)
-	viper.SetDefault("WriteTimeout", 40)
-	viper.SetDefault("IdleTimeout", 60)
-	viper.SetDefault("BackendTimeout", 30)
-	viper.SetDefault("EnableLimiting", false)
-	viper.SetDefault("LimitRequestsPerSecond", 10.0)
-	viper.SetDefault("LimitBurst", 50)
-	viper.SetDefault("StorageType", "file")
-	viper.SetDefault("StorageSource", "SS12000.json")
-	viper.SetDefault("AccessLogPath", "")
+	viper.SetDefault(CNFMDURL, "https://fed.skolfederation.se/prod/md/kontosynk.jws")
+	viper.SetDefault(CNFMDDefaultCacheTTL, 3600)
+	viper.SetDefault(CNFMDNetworkRetry, 60)
+	viper.SetDefault(CNFMDBadContentRetry, 3600)
+	viper.SetDefault(CNFReadHeaderTimeout, 5)
+	viper.SetDefault(CNFReadTimeout, 20)
+	viper.SetDefault(CNFWriteTimeout, 40)
+	viper.SetDefault(CNFIdleTimeout, 60)
+	viper.SetDefault(CNFBackendTimeout, 30)
+	viper.SetDefault(CNFEnableLimiting, false)
+	viper.SetDefault(CNFLimitRequestsPerSecond, 10.0)
+	viper.SetDefault(CNFLimitBurst, 50)
+	viper.SetDefault(CNFStorageType, "file")
+	viper.SetDefault(CNFStorageSource, "SS12000.json")
+	viper.SetDefault(CNFAccessLogPath, "")
 
 	flag.Parse()
 
@@ -91,18 +115,18 @@ func main() {
 
 	must(viper.ReadInConfig())
 
-	verifyRequired("JWKSPath", "MetadataCachePath", "Cert", "Key", "ListenAddress")
+	verifyRequired(CNFJWKSPath, CNFMDCachePath, CNFCert, CNFKey, CNFListenAddress)
 
 	mdstore := fedtls.NewMetadataStore(
-		viper.GetString("MetadataURL"),
-		viper.GetString("JWKSPath"),
-		viper.GetString("MetadataCachePath"),
-		fedtls.DefaultCacheTTL(configuredSeconds("MetadataDefaultCacheTTL")),
-		fedtls.NetworkRetry(configuredSeconds("MetadataNetworkRetry")),
-		fedtls.BadContentRetry(configuredSeconds("MetadataBadContentRetry")))
+		viper.GetString(CNFMDURL),
+		viper.GetString(CNFJWKSPath),
+		viper.GetString(CNFMDCachePath),
+		fedtls.DefaultCacheTTL(configuredSeconds(CNFMDDefaultCacheTTL)),
+		fedtls.NetworkRetry(configuredSeconds(CNFMDNetworkRetry)),
+		fedtls.BadContentRetry(configuredSeconds(CNFMDBadContentRetry)))
 
-	certFile := viper.GetString("Cert")
-	keyFile := viper.GetString("Key")
+	certFile := viper.GetString(CNFCert)
+	keyFile := viper.GetString(CNFKey)
 
 	mdTLSConfigManager, err := server.NewMetadataTLSConfigManager(certFile, keyFile, mdstore)
 
@@ -114,7 +138,7 @@ func main() {
 		return server.NormalizedEntityIDFromContext(c)
 	}
 
-	wind, err := windermere.New(viper.GetString("StorageType"), viper.GetString("StorageSource"), tenantGetter)
+	wind, err := windermere.New(viper.GetString(CNFStorageType), viper.GetString(CNFStorageSource), tenantGetter)
 	var handler http.Handler
 	handler = wind
 
@@ -122,20 +146,20 @@ func main() {
 		log.Fatalf("Failed to initialize Windermere: %v", err)
 	}
 
-	enableLimiting := viper.GetBool("EnableLimiting")
+	enableLimiting := viper.GetBool(CNFEnableLimiting)
 
 	if enableLimiting {
 		handler = server.Limiter(handler,
-			rate.Limit(viper.GetFloat64("LimitRequestsPerSecond")),
-			viper.GetInt("LimitBurst"))
+			rate.Limit(viper.GetFloat64(CNFLimitRequestsPerSecond)),
+			viper.GetInt(CNFLimitBurst))
 	}
 
-	beTimeout := configuredSeconds("BackendTimeout")
+	beTimeout := configuredSeconds(CNFBackendTimeout)
 	if beTimeout >= 1*time.Second {
 		handler = http.TimeoutHandler(handler, beTimeout, "Backend timeout")
 	}
 
-	accessLogPath := viper.GetString("AccessLogPath")
+	accessLogPath := viper.GetString(CNFAccessLogPath)
 	if accessLogPath != "" {
 		handler = accessLogHandler(handler, accessLogPath, tenantGetter)
 	}
@@ -149,15 +173,15 @@ func main() {
 		// connection specific information.
 		ConnContext: server.ContextModifier(),
 
-		ReadHeaderTimeout: configuredSeconds("ReadHeaderTimeout"),
-		ReadTimeout:       configuredSeconds("ReadTimeout"),
-		WriteTimeout:      configuredSeconds("WriteTimeout"),
-		IdleTimeout:       configuredSeconds("IdleTimeout"),
+		ReadHeaderTimeout: configuredSeconds(CNFReadHeaderTimeout),
+		ReadTimeout:       configuredSeconds(CNFReadTimeout),
+		WriteTimeout:      configuredSeconds(CNFWriteTimeout),
+		IdleTimeout:       configuredSeconds(CNFIdleTimeout),
 	}
 
 	// Set up a TLS listener with certificate authorities loaded from
 	// federation metadata (and dynamically updated as metadata gets refreshed).
-	address := viper.GetString("ListenAddress")
+	address := viper.GetString(CNFListenAddress)
 	listener, err := tls.Listen("tcp", address, mdTLSConfigManager.Config())
 
 	if err != nil {
