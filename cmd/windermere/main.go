@@ -77,6 +77,7 @@ func main() {
 	viper.SetDefault("LimitBurst", 50)
 	viper.SetDefault("StorageType", "file")
 	viper.SetDefault("StorageSource", "SS12000.json")
+	viper.SetDefault("AccessLogPath", "")
 
 	flag.Parse()
 
@@ -132,6 +133,11 @@ func main() {
 	beTimeout := configuredSeconds("BackendTimeout")
 	if beTimeout >= 1*time.Second {
 		handler = http.TimeoutHandler(handler, beTimeout, "Backend timeout")
+	}
+
+	accessLogPath := viper.GetString("AccessLogPath")
+	if accessLogPath != "" {
+		handler = accessLogHandler(handler, accessLogPath, tenantGetter)
 	}
 
 	srv := &http.Server{
