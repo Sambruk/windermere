@@ -61,6 +61,7 @@ are:
 
  * sqlite (SQLite)
  * sqlserver (Microsoft SQL Server)
+ * mysql (MySQL, MariaDB, Percona Server, Google CloudSQL or Sphinx)
 
 Depending on which driver is used, the StorageSource has a different format
 for specifying access to the database. For SQLite you can simply specify a
@@ -71,6 +72,15 @@ Example for SQL Server:
 ```
 sqlserver://<user>:<passwd>@<host>?database=<database>
 ```
+
+Example for MySQL/MariaDB:
+
+```
+<user>:<password>@<host>/<database>?multiStatements=true
+```
+
+`multiStatements=true` is currently needed for this driver
+(other drivers allow this by default).
 
 ### Building
 
