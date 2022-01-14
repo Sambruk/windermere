@@ -24,10 +24,12 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/Sambruk/windermere/scimserverlite"
 	"github.com/Sambruk/windermere/ss12000v1"
 	_ "github.com/denisenkom/go-mssqldb"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/renameio"
 	"github.com/jmoiron/sqlx"
 	_ "modernc.org/sqlite"
@@ -68,6 +70,12 @@ func New(backingType, backingSource string, tenantGetter scimserverlite.TenantGe
 		if err != nil {
 			return nil, fmt.Errorf("failed to open connection to database: %v", err)
 		}
+
+		// Recommended by the MySQL driver documentation,
+		// should perhaps be configurable?
+		db.SetConnMaxLifetime(time.Minute * 3)
+		db.SetMaxOpenConns(10)
+		db.SetMaxIdleConns(10)
 
 		sqlBackend, err := NewSQLBackend(db)
 

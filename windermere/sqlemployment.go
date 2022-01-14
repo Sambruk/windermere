@@ -30,7 +30,7 @@ type dbEmploymentRow struct {
 	Tenant         string  `db:"tenant"`
 	Id             string  `db:"id"`
 	EmployedAt     string  `db:"employedAt"`
-	User           string  `db:"user"`
+	UserId         string  `db:"userId"`
 	EmploymentRole string  `db:"employmentRole"`
 	Signature      *string `db:"signature"`
 }
@@ -44,7 +44,7 @@ func NewEmploymentRow(tenant string, employment *ss12000v1.Employment) dbEmploym
 		Tenant:         tenant,
 		Id:             employment.GetID(),
 		EmployedAt:     employment.EmployedAt.Value,
-		User:           employment.User.Value,
+		UserId:         employment.User.Value,
 		EmploymentRole: employment.EmploymentRole,
 		Signature:      sig,
 	}
@@ -53,14 +53,14 @@ func NewEmploymentRow(tenant string, employment *ss12000v1.Employment) dbEmploym
 func (backend *SQLBackend) employmentCreator(tx *sqlx.Tx, tenant string, employment *ss12000v1.Employment) (id string, err error) {
 	dbEmployment := NewEmploymentRow(tenant, employment)
 
-	_, err = tx.NamedExec(`INSERT INTO Employments (tenant, id, employedAt, [user], employmentRole, signature) VALUES (:tenant, :id, :employedAt, :user, :employmentRole, :signature)`, &dbEmployment)
+	_, err = tx.NamedExec(`INSERT INTO Employments (tenant, id, employedAt, userId, employmentRole, signature) VALUES (:tenant, :id, :employedAt, :userId, :employmentRole, :signature)`, &dbEmployment)
 	return employment.GetID(), err
 }
 
 func (backend *SQLBackend) employmentMutator(tx *sqlx.Tx, tenant string, employment *ss12000v1.Employment) (err error) {
 	dbEmployment := NewEmploymentRow(tenant, employment)
 
-	_, err = tx.NamedExec(`UPDATE Employments SET employedAt = :employedAt, [user] = :user, employmentRole = :employmentRole, signature = :signature WHERE tenant = :tenant AND id = :id`, &dbEmployment)
+	_, err = tx.NamedExec(`UPDATE Employments SET employedAt = :employedAt, userId = :userId, employmentRole = :employmentRole, signature = :signature WHERE tenant = :tenant AND id = :id`, &dbEmployment)
 	return
 }
 
@@ -88,7 +88,7 @@ func (backend *SQLBackend) employmentReader(tx *sqlx.Tx, mainQuery string, args 
 				Value: dbEmployments[i].EmployedAt,
 			},
 			User: ss12000v1.SCIMReference{
-				Value: dbEmployments[i].User,
+				Value: dbEmployments[i].UserId,
 			},
 			EmploymentRole: dbEmployments[i].EmploymentRole,
 			Signature:      sig,
