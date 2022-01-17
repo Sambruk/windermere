@@ -31,14 +31,17 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+type ObjectParser func(resourceType, resource string) (ss12000v1.Object, error)
+
 // SQLBackend implements scimserverlite.Backend for SQL databases
 type SQLBackend struct {
-	db *sqlx.DB
+	db           *sqlx.DB
+	objectParser ObjectParser
 }
 
 // NewSQLBackend creates a new SQLBackend
-func NewSQLBackend(d *sqlx.DB) (backend *SQLBackend, err error) {
-	backend = &SQLBackend{db: d}
+func NewSQLBackend(d *sqlx.DB, op ObjectParser) (backend *SQLBackend, err error) {
+	backend = &SQLBackend{db: d, objectParser: op}
 	err = backend.initSchema()
 	if err != nil {
 		return nil, err
@@ -390,7 +393,7 @@ func (backend *SQLBackend) Create(tenant, resourceType, resource string) (string
 		return "", err
 	}
 
-	obj, err := objectParser(resourceType, resource)
+	obj, err := backend.objectParser(resourceType, resource)
 
 	if err != nil {
 		return "", scim.NewError(scim.MalformedResourceError, "Failed to parse resource:\n"+err.Error())
@@ -438,7 +441,7 @@ func (backend *SQLBackend) Update(tenant, resourceType, resourceID, resource str
 		return "", err
 	}
 
-	obj, err := objectParser(resourceType, resource)
+	obj, err := backend.objectParser(resourceType, resource)
 
 	if err != nil {
 		return "", scim.NewError(scim.MalformedResourceError, "Failed to parse resource:\n"+err.Error())

@@ -276,7 +276,8 @@ func startTest(t *testing.T) *sqltestfixture {
 	var f sqltestfixture
 	db, err := sqlx.Open("sqlite", ":memory:")
 	Ensure(t, err)
-	b, err := NewSQLBackend(db)
+	parser := validatingObjectParser(CreateOptionalValidator(true, true), objectParser)
+	b, err := NewSQLBackend(db, parser)
 	Ensure(t, err)
 	f.b = b
 	f.db = db
@@ -491,4 +492,45 @@ func TestIdentity(t *testing.T) {
 	roundTrip(tenant1, "Employments", string(body), bajeEmpCopy.GetID(), &bajeEmpCopy, false)
 
 	roundTrip(tenant1, "Activities", grupp2ActivityJSON, grupp2Activity.GetID(), &grupp2Activity, true)
+}
+
+func TestValidation(t *testing.T) {
+	f := startTest(t)
+	badUUID := `
+	{
+		"schemas": ["urn:scim:schemas:extension:sis:school:1.0:Organisation"],
+		"externalId": "x80428c4-8788-47d7-aca7-761681fbe66a",
+		"displayName": "Kommunen"
+	}
+	`
+
+	_, err := f.b.Create(tenant1, "Organisations", badUUID)
+	MustFail(t, err)
+	scimError, ok := err.(scimserverlite.SCIMTypedError)
+	if !ok || scimError.Type() != scimserverlite.MalformedResourceError {
+		t.Errorf("wrong error, expected malformed resource, got: %v", err)
+	}
+
+	badSchoolUnitCode := `
+	{
+		"schemas": ["urn:scim:schemas:extension:sis:school:1.0:SchoolUnit"],
+		"externalId": "8d371858-3fbd-4af2-ae33-84225ead4a1b",
+		"displayName": "skolenhet1",
+		"schoolUnitCode": "123",
+		"schoolUnitGroup":  {
+			"value": "b7cbd8b7-96a6-425f-b14c-d4564d989d84"
+		},
+		"organisation":  {
+			"value": "d80428c4-8788-47d7-aca7-761681fbe66a"
+		},
+		"municipalityCode": "9999"
+	}
+	`
+
+	_, err = f.b.Create(tenant1, "SchoolUnits", badSchoolUnitCode)
+	MustFail(t, err)
+	scimError, ok = err.(scimserverlite.SCIMTypedError)
+	if !ok || scimError.Type() != scimserverlite.MalformedResourceError {
+		t.Errorf("wrong error, expected malformed resource, got: %v", err)
+	}
 }
