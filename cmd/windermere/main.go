@@ -94,6 +94,8 @@ const (
 	CNFMDBaseURI              = "MetadataBaseURI"
 	CNFMDOrganization         = "MetadataOrganization"
 	CNFMDOrganizationID       = "MetadataOrganizationID"
+	CNFValidateUUID           = "ValidateUUID"
+	CNFValidateSchoolUnitCode = "ValidateSchoolUnitCode"
 )
 
 func main() {
@@ -115,6 +117,8 @@ func main() {
 		CNFStorageSource:          "SS12000.json",
 		CNFAccessLogPath:          "",
 		CNFAdminListenAddress:     "",
+		CNFValidateUUID:           true,
+		CNFValidateSchoolUnitCode: true,
 	}
 	for key, value := range defaults {
 		viper.SetDefault(key, value)
@@ -160,8 +164,14 @@ func main() {
 		return server.NormalizedEntityIDFromContext(c)
 	}
 
+	// Configurable validation of SS12000 objects
+	validator := windermere.CreateOptionalValidator(
+		viper.GetBool(CNFValidateUUID),
+		viper.GetBool(CNFValidateSchoolUnitCode),
+	)
+
 	// Create the Windermere SCIM handler
-	wind, err := windermere.New(viper.GetString(CNFStorageType), viper.GetString(CNFStorageSource), tenantGetter)
+	wind, err := windermere.New(viper.GetString(CNFStorageType), viper.GetString(CNFStorageSource), tenantGetter, validator)
 
 	if err != nil {
 		log.Fatalf("Failed to initialize Windermere: %v", err)

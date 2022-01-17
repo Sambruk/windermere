@@ -49,12 +49,14 @@ func (wind *Windermere) Shutdown() error {
 	return wind.Save()
 }
 
-func New(backingType, backingSource string, tenantGetter scimserverlite.TenantGetter) (*Windermere, error) {
+func New(backingType, backingSource string, tenantGetter scimserverlite.TenantGetter, v Validator) (*Windermere, error) {
 	var b scimserverlite.Backend
+	parser := validatingObjectParser(v, objectParser)
+
 	if backingType == "file" {
 		// TODO: remove this untypedObjectParser once InMemory-backend is SS12000-aware
 		untypedObjectParser := func(resourceType, resource string) (interface{}, error) {
-			return objectParser(resourceType, resource)
+			return parser(resourceType, resource)
 		}
 		inMemoryBackend := scimserverlite.NewInMemoryBackend(scimserverlite.CreateIDFromExternalID, untypedObjectParser)
 
@@ -77,7 +79,7 @@ func New(backingType, backingSource string, tenantGetter scimserverlite.TenantGe
 		db.SetMaxOpenConns(10)
 		db.SetMaxIdleConns(10)
 
-		sqlBackend, err := NewSQLBackend(db)
+		sqlBackend, err := NewSQLBackend(db, parser)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize SQL backend: %v", err)
@@ -213,4 +215,22 @@ func objectParser(resourceType, resource string) (ss12000v1.Object, error) {
 	}
 
 	return target, nil
+}
+
+// Creates an ObjectParser which also does validation after parsing
+func validatingObjectParser(validate Validator, parse ObjectParser) ObjectParser {
+	return func(resourceType, resource string) (ss12000v1.Object, error) {
+		obj, err := parse(resourceType, resource)
+
+		if err != nil {
+			return nil, err
+		}
+
+		err = validate(obj)
+
+		if err != nil {
+			return nil, err
+		}
+		return obj, nil
+	}
 }
