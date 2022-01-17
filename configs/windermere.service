@@ -1,0 +1,16 @@
+[Unit]
+Description=Windermere EGIL SCIM Server
+Documentation=https://github.com/Sambruk/windermere
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/windermere /windermere/config.yaml
+ExecStop=kill -TERM $MAINPID
+User=windermere
+StandardOutput=append:/windermere/output.log
+StandardError=append:/windermere/error.log
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
