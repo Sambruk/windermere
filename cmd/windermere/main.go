@@ -157,7 +157,7 @@ func main() {
 	// Windermere needs a function to get the currently authenticated
 	// SCIM tenant from the current Context.
 	tenantGetter := func(c context.Context) string {
-		return server.NormalizedEntityIDFromContext(c)
+		return server.EntityIDFromContext(c)
 	}
 
 	// Create the Windermere SCIM handler
