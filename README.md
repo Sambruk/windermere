@@ -8,7 +8,7 @@ provider.
 
 Before getting started you need a few things:
 
- * A host with the Go compiler installed
+ * A host with the Go compiler installed (v1.16 or later)
  * URL and public keys to the authentication federation
  * A certificate to use in PEM format
  * A configuration file for Windermere
