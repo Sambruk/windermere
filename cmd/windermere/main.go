@@ -22,6 +22,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"flag"
 	"log"
 	"net/http"
@@ -96,7 +97,54 @@ const (
 	CNFMDOrganizationID       = "MetadataOrganizationID"
 	CNFValidateUUID           = "ValidateUUID"
 	CNFValidateSchoolUnitCode = "ValidateSchoolUnitCode"
+	CNFSkolsynkListenAddress  = "SkolsynkListenAddress"
+	CNFSkolsynkAuthHeader     = "SkolsynkAuthHeader"
+	CNFSkolsynkCert           = "SkolsynkCert"
+	CNFSkolsynkKey            = "SkolsynkKey"
+	CNFSkolsynkClients        = "SkolsynkClients"
 )
+
+// Parses the config value for clients to a map[string]string
+// (from tenant name to API key)
+func parseClients(value interface{}) (map[string]string, error) {
+	res := make(map[string]string)
+	err := errors.New("invalid clients specification")
+
+	arr, ok := value.([]interface{})
+	if !ok {
+		return nil, err
+	}
+
+	for i := range arr {
+		client, ok := arr[i].(map[interface{}]interface{})
+		if !ok {
+			return nil, err
+		}
+
+		getString := func(m map[interface{}]interface{}, s string) (string, error) {
+			val, ok := m[s]
+			if !ok {
+				return "", err
+			}
+			res, ok := val.(string)
+			if !ok {
+				return "", err
+			}
+			return res, nil
+		}
+		name, e := getString(client, "name")
+		if e != nil {
+			return nil, e
+		}
+		key, e := getString(client, "key")
+		if e != nil {
+			return nil, e
+		}
+
+		res[name] = key
+	}
+	return res, nil
+}
 
 func main() {
 	// Configuration defaults
@@ -119,6 +167,7 @@ func main() {
 		CNFAdminListenAddress:     "",
 		CNFValidateUUID:           true,
 		CNFValidateSchoolUnitCode: true,
+		CNFSkolsynkAuthHeader:     "X-API-Key",
 	}
 	for key, value := range defaults {
 		viper.SetDefault(key, value)
@@ -161,6 +210,10 @@ func main() {
 	// Windermere needs a function to get the currently authenticated
 	// SCIM tenant from the current Context.
 	tenantGetter := func(c context.Context) string {
+		tenant := APIKeyAuthenticatedTenantFromContext(c)
+		if tenant != nil {
+			return *tenant
+		}
 		return server.EntityIDFromContext(c)
 	}
 
@@ -232,6 +285,47 @@ func main() {
 			log.Fatalf("Unexpected server exit: %v", err)
 		}
 	}()
+
+	// Possibly start Skolsynk HTTP server
+	if viper.IsSet(CNFSkolsynkListenAddress) {
+		clients, err := parseClients(viper.Get(CNFSkolsynkClients))
+
+		if err != nil {
+			log.Fatalf("Failed to parse clients from config: %v", err)
+		}
+
+		// Create the HTTP server
+		skolsynk := &http.Server{
+			// Wrap the HTTP handler with authentication middleware.
+			Handler: APIKeyAuthMiddleware(handler,
+				viper.GetString(CNFSkolsynkAuthHeader),
+				clients),
+			Addr: viper.GetString(CNFSkolsynkListenAddress),
+
+			ReadHeaderTimeout: configuredSeconds(CNFReadHeaderTimeout),
+			ReadTimeout:       configuredSeconds(CNFReadTimeout),
+			WriteTimeout:      configuredSeconds(CNFWriteTimeout),
+			IdleTimeout:       configuredSeconds(CNFIdleTimeout),
+		}
+
+		skolsynkCertFile := certFile
+		skolsynkKeyFile := keyFile
+
+		if viper.IsSet(CNFSkolsynkCert) {
+			skolsynkCertFile = viper.GetString(CNFSkolsynkCert)
+		}
+		if viper.IsSet(CNFSkolsynkKey) {
+			skolsynkKeyFile = viper.GetString(CNFSkolsynkKey)
+		}
+
+		go func() {
+			err := skolsynk.ListenAndServeTLS(skolsynkCertFile, skolsynkKeyFile)
+
+			if err != http.ErrServerClosed {
+				log.Fatalf("Unexpected Skolsynk server exit: %v", err)
+			}
+		}()
+	}
 
 	// Possibly start the admin HTTP server
 	adminAddress := viper.GetString(CNFAdminListenAddress)
