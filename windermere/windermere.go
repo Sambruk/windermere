@@ -30,7 +30,6 @@ import (
 	"github.com/Sambruk/windermere/ss12000v1"
 	_ "github.com/denisenkom/go-mssqldb"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/google/renameio"
 	"github.com/jmoiron/sqlx"
 	_ "modernc.org/sqlite"
 )
@@ -167,17 +166,6 @@ func loadSCIMBackend(backend *scimserverlite.InMemoryBackend, path string) error
 	}
 	err = backend.Load(serializedForm)
 	return err
-}
-
-// Saves the in-memory backend to file
-func saveSCIMBackend(backend *scimserverlite.InMemoryBackend, path string) error {
-	serializedForm, err := backend.Serialize()
-
-	if err != nil {
-		return err
-	}
-
-	return renameio.WriteFile(path, serializedForm, 0600)
 }
 
 func objectParser(resourceType, resource string) (ss12000v1.Object, error) {
