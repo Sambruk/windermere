@@ -184,28 +184,19 @@ func main() {
 
 	must(viper.ReadInConfig())
 
-	verifyRequired(CNFJWKSPath, CNFMDCachePath, CNFCert, CNFKey, CNFListenAddress,
-		CNFMDEntityID, CNFMDBaseURI, CNFMDOrganization, CNFMDOrganizationID)
+	verifyRequired(CNFCert, CNFKey)
 
-	// Setup federated TLS metadata store
-	mdstore := fedtls.NewMetadataStore(
-		viper.GetString(CNFMDURL),
-		viper.GetString(CNFJWKSPath),
-		viper.GetString(CNFMDCachePath),
-		fedtls.DefaultCacheTTL(configuredSeconds(CNFMDDefaultCacheTTL)),
-		fedtls.NetworkRetry(configuredSeconds(CNFMDNetworkRetry)),
-		fedtls.BadContentRetry(configuredSeconds(CNFMDBadContentRetry)))
+	if viper.IsSet(CNFListenAddress) {
+		verifyRequired(CNFJWKSPath, CNFMDCachePath,
+			CNFMDEntityID, CNFMDBaseURI, CNFMDOrganization, CNFMDOrganizationID)
+	} else if viper.IsSet(CNFSkolsynkListenAddress) {
+		verifyRequired(CNFSkolsynkClients)
+	} else {
+		log.Fatalf("No listen address configured (configure at least one of %s or %s", CNFListenAddress, CNFSkolsynkListenAddress)
+	}
 
 	certFile := viper.GetString(CNFCert)
 	keyFile := viper.GetString(CNFKey)
-
-	// The TLS config manager is used by the tls.Listener below to configure
-	// TLS according to the TLS federation.
-	mdTLSConfigManager, err := server.NewMetadataTLSConfigManager(certFile, keyFile, mdstore)
-
-	if err != nil {
-		log.Fatalf("Failed to create TLS configuration: %v", err)
-	}
 
 	// Windermere needs a function to get the currently authenticated
 	// SCIM tenant from the current Context.
@@ -252,41 +243,64 @@ func main() {
 		handler = accessLogHandler(handler, accessLogPath, tenantGetter)
 	}
 
-	// Create the HTTP server
-	srv := &http.Server{
-		// Wrap the HTTP handler with authentication middleware.
-		Handler: server.AuthMiddleware(handler, mdstore),
+	var fedtlsServer *http.Server
+	var mdstore *fedtls.MetadataStore
+	// Possibly setup EGIL server with Federated TLS authentication
+	if viper.IsSet(CNFListenAddress) {
+		// Setup federated TLS metadata store
+		mdstore = fedtls.NewMetadataStore(
+			viper.GetString(CNFMDURL),
+			viper.GetString(CNFJWKSPath),
+			viper.GetString(CNFMDCachePath),
+			fedtls.DefaultCacheTTL(configuredSeconds(CNFMDDefaultCacheTTL)),
+			fedtls.NetworkRetry(configuredSeconds(CNFMDNetworkRetry)),
+			fedtls.BadContentRetry(configuredSeconds(CNFMDBadContentRetry)))
 
-		// In order to use the authentication middleware, the server needs
-		// to have a ConnContext configured so the middleware can access
-		// connection specific information.
-		ConnContext: server.ContextModifier(),
+		// The TLS config manager is used by the tls.Listener below to configure
+		// TLS according to the TLS federation.
+		mdTLSConfigManager, err := server.NewMetadataTLSConfigManager(certFile, keyFile, mdstore)
 
-		ReadHeaderTimeout: configuredSeconds(CNFReadHeaderTimeout),
-		ReadTimeout:       configuredSeconds(CNFReadTimeout),
-		WriteTimeout:      configuredSeconds(CNFWriteTimeout),
-		IdleTimeout:       configuredSeconds(CNFIdleTimeout),
-	}
-
-	// Set up a TLS listener with certificate authorities loaded from
-	// federation metadata (and dynamically updated as metadata gets refreshed).
-	address := viper.GetString(CNFListenAddress)
-	listener, err := tls.Listen("tcp", address, mdTLSConfigManager.Config())
-
-	if err != nil {
-		log.Fatalf("Failed to listen to %s (%v)", address, err)
-	}
-
-	// Start the main HTTP server
-	go func() {
-		err := srv.Serve(listener)
-
-		if err != http.ErrServerClosed {
-			log.Fatalf("Unexpected server exit: %v", err)
+		if err != nil {
+			log.Fatalf("Failed to create TLS configuration: %v", err)
 		}
-	}()
 
-	// Possibly start Skolsynk HTTP server
+		// Create the HTTP server
+		fedtlsServer = &http.Server{
+			// Wrap the HTTP handler with authentication middleware.
+			Handler: server.AuthMiddleware(handler, mdstore),
+
+			// In order to use the authentication middleware, the server needs
+			// to have a ConnContext configured so the middleware can access
+			// connection specific information.
+			ConnContext: server.ContextModifier(),
+
+			ReadHeaderTimeout: configuredSeconds(CNFReadHeaderTimeout),
+			ReadTimeout:       configuredSeconds(CNFReadTimeout),
+			WriteTimeout:      configuredSeconds(CNFWriteTimeout),
+			IdleTimeout:       configuredSeconds(CNFIdleTimeout),
+		}
+
+		// Set up a TLS listener with certificate authorities loaded from
+		// federation metadata (and dynamically updated as metadata gets refreshed).
+		address := viper.GetString(CNFListenAddress)
+		listener, err := tls.Listen("tcp", address, mdTLSConfigManager.Config())
+
+		if err != nil {
+			log.Fatalf("Failed to listen to %s (%v)", address, err)
+		}
+
+		// Start the main HTTP server
+		go func() {
+			err := fedtlsServer.Serve(listener)
+
+			if err != http.ErrServerClosed {
+				log.Fatalf("Unexpected server exit: %v", err)
+			}
+		}()
+	}
+
+	var skolsynkServer *http.Server
+	// Possibly start Skolsynk HTTP server (API-key based authentication)
 	if viper.IsSet(CNFSkolsynkListenAddress) {
 		clients, err := parseClients(viper.Get(CNFSkolsynkClients))
 
@@ -295,7 +309,7 @@ func main() {
 		}
 
 		// Create the HTTP server
-		skolsynk := &http.Server{
+		skolsynkServer = &http.Server{
 			// Wrap the HTTP handler with authentication middleware.
 			Handler: APIKeyAuthMiddleware(handler,
 				viper.GetString(CNFSkolsynkAuthHeader),
@@ -319,7 +333,7 @@ func main() {
 		}
 
 		go func() {
-			err := skolsynk.ListenAndServeTLS(skolsynkCertFile, skolsynkKeyFile)
+			err := skolsynkServer.ListenAndServeTLS(skolsynkCertFile, skolsynkKeyFile)
 
 			if err != http.ErrServerClosed {
 				log.Fatalf("Unexpected Skolsynk server exit: %v", err)
@@ -342,9 +356,18 @@ func main() {
 
 	log.Printf("Shutting down, waiting for active requests to finish...")
 
-	err = srv.Shutdown(context.Background())
-	if err != nil {
-		log.Printf("Failed to gracefully shutdown server: %v", err)
+	if fedtlsServer != nil {
+		err = fedtlsServer.Shutdown(context.Background())
+		if err != nil {
+			log.Printf("Failed to gracefully shutdown federated TLS server: %v", err)
+		}
+	}
+
+	if skolsynkServer != nil {
+		err = skolsynkServer.Shutdown(context.Background())
+		if err != nil {
+			log.Printf("Failed to gracefully shutdown Skolsynk server: %v", err)
+		}
 	}
 
 	err = wind.Shutdown()
@@ -352,8 +375,10 @@ func main() {
 		log.Printf("Failed to gracefully shutdown Windermere: %v", err)
 	}
 
-	log.Printf("Server closed, waiting for metadata store to close...")
-	mdstore.Quit()
+	if mdstore != nil {
+		log.Printf("Server closed, waiting for metadata store to close...")
+		mdstore.Quit()
+	}
 
 	log.Printf("Done.")
 }
