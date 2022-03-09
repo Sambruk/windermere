@@ -149,7 +149,9 @@ func genericSCIMHandler(w http.ResponseWriter, r *http.Request, server *Server) 
 	tenant := server.getTenant(r.Context())
 
 	if r.Method == "POST" || r.Method == "PUT" {
-		if r.Header.Get("Content-Type") != "application/scim+json" {
+		mediaType := r.Header.Get("Content-Type")
+		if mediaType != "application/scim+json" &&
+			mediaType != "application/json" {
 			http.Error(w, "Bad media type", http.StatusUnsupportedMediaType)
 			return
 		}
