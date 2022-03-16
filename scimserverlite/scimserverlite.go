@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"strings"
@@ -152,7 +153,13 @@ func genericSCIMHandler(w http.ResponseWriter, r *http.Request, server *Server) 
 	tenant := server.getTenant(r.Context())
 
 	if r.Method == "POST" || r.Method == "PUT" {
-		mediaType := r.Header.Get("Content-Type")
+		contentType := r.Header.Get("Content-Type")
+		mediaType, _, err := mime.ParseMediaType(contentType)
+
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to parse Content-Type (%s): %v", contentType, err), http.StatusUnsupportedMediaType)
+			return
+		}
 		if mediaType != SCIMMediaType &&
 			mediaType != SCIMDeprecatedMediaType {
 			http.Error(w, fmt.Sprintf("Bad media type: got \"%s\" (SCIM uses %s)", mediaType, SCIMMediaType),
