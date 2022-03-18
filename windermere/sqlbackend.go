@@ -23,7 +23,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"regexp"
+	"time"
 
 	"github.com/Sambruk/windermere/scimserverlite"
 	scim "github.com/Sambruk/windermere/scimserverlite"
@@ -262,8 +264,11 @@ func expandDriverSpecificTypes(driverName, schema string) string {
 func (backend *SQLBackend) initSchema() error {
 	// Ensure we have a working connection since any error in
 	// getDBVersion is interpreted as an uninitialized database.
-	if err := backend.db.Ping(); err != nil {
-		return err
+	const waitTime = 5 * time.Second
+	for err := backend.db.Ping(); err != nil; err = backend.db.Ping() {
+		log.Printf("Failed to connect to database: %v", err)
+		log.Printf("Will retry in %d seconds", waitTime/time.Second)
+		time.Sleep(waitTime)
 	}
 	if err := driverSpecificInit(backend.db); err != nil {
 		return err
