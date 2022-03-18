@@ -13,7 +13,7 @@ Before getting started you need a few things:
  * A certificate to use in PEM format
  * A configuration file for Windermere
 
-You can find the URL and public keys for Kontosynk at [Kontosynk](https://www.skolfederation.se/teknisk-information/kontosynk/tekniska-miljoer/)
+You can find the URL and public keys for Moa (previously Kontosynk) at [Kontosynk](https://www.skolfederation.se/teknisk-information/kontosynk/tekniska-miljoer/)
 
 A certificate can be generated with OpenSSL, for instance:
 
@@ -101,7 +101,7 @@ Specify the full path to the binary unless you've added it to your `$PATH`.
 ## Metadata to upload to the federation operator
 
 Before clients can connect to the server you need to upload your metadata
-to the federation operator (Kontosynk). Windermere can generate your
+to the federation operator (Moa). Windermere can generate your
 metadata for you, but you need to activate the administration HTTP interface.
 
 ### Administration HTTP interface
@@ -147,3 +147,45 @@ what URL was requested, result code and execution time for each request.
 is logged, so if you want to have it switched on permanently in production
 you may need to set up frequent log rotation (for instance with the standard
 Unix logrotate tool).
+
+## Skolsynk (or other client with API-key authentication)
+
+If you wish to allow Skolsynk to connect you need to configure a separate
+listening address, for instance:
+
+```
+SkolsynkListenAddress: :4430
+```
+
+If you wish you can configure which HTTP header to use for authentication key:
+
+```
+SkolsynkAuthHeader: X-API-Key
+```
+
+The default, if you don't configure this, is X-API-Key.
+
+Then you also need to create API keys for your clients:
+
+```
+SkolsynkClients:
+  - name: skolsynkGoogle
+    key: HfACARee4G3qrtBx
+  - name: skolsynkMicrosoft
+    key: fjEGgDnDBAaBh4rN
+```
+
+What you specify after `name` will be used as the tenant name in the database
+(similar to entity ID if you're using Federated TLS (Moa)). You should generate
+the `key` yourself and hand it over to Skolsynk in a secure way.
+
+By default, the same certificate will be used for the HTTPS traffic for Skolsynk,
+but if you wish you can specify a separate certificate also:
+
+```
+SkolsynkCert: /home/windermere/skolsynkcert.pem
+SkolsynkKey: /home/windermere/skolsynkkey.pem
+```
+
+You can choose to run only Federated TLS (Moa), only Skolsynk, or both at the same
+time (by configuring `ListenAddress` and/or `SkolsynkListenAddress`).
