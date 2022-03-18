@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"strings"
@@ -137,9 +138,12 @@ func handleBackendError(w http.ResponseWriter, e error) {
 	http.Error(w, e.Error(), status)
 }
 
+const SCIMMediaType = "application/scim+json"
+const SCIMDeprecatedMediaType = "application/json"
+
 func resourceResponse(w http.ResponseWriter, backendResource string, status int) {
 	w.WriteHeader(status)
-	w.Header().Set("Content-Type", "application/scim+json")
+	w.Header().Set("Content-Type", SCIMMediaType)
 	w.Write([]byte(backendResource))
 }
 
@@ -149,8 +153,17 @@ func genericSCIMHandler(w http.ResponseWriter, r *http.Request, server *Server) 
 	tenant := server.getTenant(r.Context())
 
 	if r.Method == "POST" || r.Method == "PUT" {
-		if r.Header.Get("Content-Type") != "application/scim+json" {
-			http.Error(w, "Bad media type", http.StatusUnsupportedMediaType)
+		contentType := r.Header.Get("Content-Type")
+		mediaType, _, err := mime.ParseMediaType(contentType)
+
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to parse Content-Type (%s): %v", contentType, err), http.StatusUnsupportedMediaType)
+			return
+		}
+		if mediaType != SCIMMediaType &&
+			mediaType != SCIMDeprecatedMediaType {
+			http.Error(w, fmt.Sprintf("Bad media type: got \"%s\" (SCIM uses %s)", mediaType, SCIMMediaType),
+				http.StatusUnsupportedMediaType)
 			return
 		}
 
