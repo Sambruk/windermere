@@ -1,6 +1,6 @@
 ## Releases
 
-## v0.6.0 (2022-03-23)
+## v0.5.1 (2022-03-23)
 #### Bugfixes
   - If the in-memory backend was used, parsed objects weren't deleted
     properly (#16)
