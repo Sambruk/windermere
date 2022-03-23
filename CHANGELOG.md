@@ -1,5 +1,10 @@
 ## Releases
 
+## v0.6.0 (2022-03-23)
+#### Bugfixes
+  - If the in-memory backend was used, parsed objects weren't deleted
+    properly (#16)
+
 ## v0.5.0 (2022-03-18)
 #### New features
   - Support for API-based authentication (Skolsynk) (#11)
