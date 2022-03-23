@@ -159,7 +159,7 @@ func (backend *InMemoryBackend) Delete(tenant, resourceType, resourceID string) 
 	}
 
 	delete(backend.resources[tenant][resourceType], resourceID)
-	delete(backend.resources[tenant][resourceType], resourceID)
+	delete(backend.parsed[tenant][resourceType], resourceID)
 	return nil
 }
 

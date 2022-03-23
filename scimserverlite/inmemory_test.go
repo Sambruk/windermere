@@ -134,6 +134,12 @@ func TestCRUD(t *testing.T) {
 	MustFail(t, err)
 
 	Ensure(t, b.Delete(T1, UserType, "0"))
+
+	resource, err = b.GetResource(T1, UserType, "0")
+	MustFail(t, err)
+
+	obj, err = b.GetParsedResource(T1, UserType, "0")
+	MustFail(t, err)
 }
 
 func TestMultiTenancy(t *testing.T) {
