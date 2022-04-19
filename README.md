@@ -189,3 +189,41 @@ SkolsynkKey: /home/windermere/skolsynkkey.pem
 
 You can choose to run only Federated TLS (Moa), only Skolsynk, or both at the same
 time (by configuring `ListenAddress` and/or `SkolsynkListenAddress`).
+
+## Running as a service
+
+Windermere can run as a regular command line program, or as a service.
+
+For Linux, there's an example systemd service definition [here](configs/windermere.service).
+
+For Windows, the service can be installed by running the program with `-install`:
+
+```
+windermere -install c:\windermere\config.yaml
+```
+
+You can remove the service with the `-uninstall` flag.
+
+If you wish you can also specify user and password for the service:
+
+```
+windermere -install -user ben -password verysecret c:\windermere\config.yaml
+```
+
+Note that the path to the config file should be absolute when you install the
+service since the process might not start from the same directory when running
+as a service. You may also want to make sure the paths inside the config file
+are absolute for the same reason.
+
+If you don't want to specify password on the command line you can configure that
+in the Windows Service Manager instead.
+
+### Logging
+
+If you're running Windermere as a service you may want to send logging to a file
+(depending on what your operating system does with standard output and standard
+error for services). Use the `LogPath` setting in your config file:
+
+```
+LogPath: c:/windermere/log.txt
+```

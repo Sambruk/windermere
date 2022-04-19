@@ -1,5 +1,9 @@
 ## Releases
 
+## Unreleased
+#### Features
+  - Windermere can run as a Windows service (#18)
+
 ## v0.5.1 (2022-03-23)
 #### Bugfixes
   - If the in-memory backend was used, parsed objects weren't deleted
