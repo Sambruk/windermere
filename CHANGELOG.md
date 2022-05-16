@@ -1,5 +1,9 @@
 ## Releases
 
+## Unreleased
+#### Bugfixes
+  - Better stack traces when the timeout handler is used (#19)
+
 ## v0.5.1 (2022-03-23)
 #### Bugfixes
   - If the in-memory backend was used, parsed objects weren't deleted
