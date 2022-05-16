@@ -235,7 +235,7 @@ func main() {
 
 	beTimeout := configuredSeconds(CNFBackendTimeout)
 	if beTimeout >= 1*time.Second {
-		handler = http.TimeoutHandler(handler, beTimeout, "Backend timeout")
+		handler = PanicReportTimeoutHandler(handler, beTimeout, "Backend timeout")
 	}
 
 	accessLogPath := viper.GetString(CNFAccessLogPath)
