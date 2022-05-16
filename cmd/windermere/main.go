@@ -228,7 +228,7 @@ func main() {
 	enableLimiting := viper.GetBool(CNFEnableLimiting)
 
 	if enableLimiting {
-		handler = server.Limiter(handler,
+		handler = Limiter(handler, tenantGetter,
 			rate.Limit(viper.GetFloat64(CNFLimitRequestsPerSecond)),
 			viper.GetInt(CNFLimitBurst))
 	}
