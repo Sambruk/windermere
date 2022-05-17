@@ -1,6 +1,6 @@
 ## Releases
 
-## Unreleased
+## v0.5.2 (2022-05-17)
 #### Bugfixes
   - Better stack traces when the timeout handler is used (#19)
   - Rate limiting now also works for API-key based authentication (#20)
