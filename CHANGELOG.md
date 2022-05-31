@@ -1,5 +1,9 @@
 ## Releases
 
+## Unreleased
+### New features
+  - Accepts PUT towards a resource type end point (#23)
+
 ## v0.5.2 (2022-05-17)
 #### Bugfixes
   - Better stack traces when the timeout handler is used (#19)

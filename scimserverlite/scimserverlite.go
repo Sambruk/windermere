@@ -66,7 +66,7 @@ func NewServer(endpoints []string, backend Backend, tenantGetter TenantGetter) *
 
 func getResourceType(url *url.URL) (string, error) {
 	path := strings.Split(url.Path, "/")
-	if len(path) < 1 {
+	if len(path) < 2 {
 		return "", fmt.Errorf("Too few components in path")
 	}
 	return path[len(path)-1], nil
@@ -74,7 +74,7 @@ func getResourceType(url *url.URL) (string, error) {
 
 func getResourceTypeAndID(url *url.URL) (string, string, error) {
 	path := strings.Split(url.Path, "/")
-	if len(path) < 2 {
+	if len(path) < 3 {
 		return "", "", fmt.Errorf("Too few components in path")
 	}
 	return path[len(path)-2], path[len(path)-1], nil

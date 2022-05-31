@@ -38,10 +38,11 @@ type Windermere struct {
 	backend     scimserverlite.Backend
 	backingPath string
 	server      *scimserverlite.Server
+	handler     http.Handler
 }
 
 func (wind *Windermere) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	wind.server.ServeHTTP(w, r)
+	wind.handler.ServeHTTP(w, r)
 }
 
 func (wind *Windermere) Shutdown() error {
@@ -95,6 +96,7 @@ func New(backingType, backingSource string, tenantGetter scimserverlite.TenantGe
 		backend:     b,
 		backingPath: backingSource,
 		server:      s,
+		handler:     putCompatibilityHandler(s),
 	}
 
 	return result, nil
