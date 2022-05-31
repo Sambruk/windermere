@@ -1,6 +1,6 @@
 ## Releases
 
-## Unreleased
+## v0.6.0 (2022-05-31)
 ### New features
   - Accepts PUT towards a resource type end point (#23)
 
