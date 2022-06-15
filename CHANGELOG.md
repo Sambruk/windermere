@@ -1,5 +1,8 @@
 ## Releases
 
+## v0.6.1 (2022-06-15)
+  - Fixed parsing of Skolsynk clients after Viper upgrade (#25)
+
 ## v0.6.0 (2022-05-31)
 ### New features
   - Accepts PUT towards a resource type end point (#23)

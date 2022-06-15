@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Sambruk/windermere/ss12000v1"
+	"github.com/Sambruk/windermere/test"
 )
 
 func TestUUIDValidation(t *testing.T) {
@@ -14,16 +15,16 @@ func TestUUIDValidation(t *testing.T) {
 			ExternalID: uuid,
 		}
 	}
-	MustFail(t, validator(withUUID("foo")))
-	Ensure(t, validator(withUUID("fc5a14b6-d08a-4280-9a48-0952ff5d5f26")))
+	test.MustFail(t, validator(withUUID("foo")))
+	test.Ensure(t, validator(withUUID("fc5a14b6-d08a-4280-9a48-0952ff5d5f26")))
 	// Garbage before valid UUID
-	MustFail(t, validator(withUUID("ffc5a14b6-d08a-4280-9a48-0952ff5d5f26")))
+	test.MustFail(t, validator(withUUID("ffc5a14b6-d08a-4280-9a48-0952ff5d5f26")))
 	// Garbage after
-	MustFail(t, validator(withUUID("fc5a14b6-d08a-4280-9a48-0952ff5d5f266")))
+	test.MustFail(t, validator(withUUID("fc5a14b6-d08a-4280-9a48-0952ff5d5f266")))
 	// Invalid character ('g')
-	MustFail(t, validator(withUUID("gc5a14b6-d08a-4280-9a48-0952ff5d5f266")))
+	test.MustFail(t, validator(withUUID("gc5a14b6-d08a-4280-9a48-0952ff5d5f266")))
 	// Upper case letters is ok
-	Ensure(t, validator(withUUID("Fc5a14b6-d08a-4280-9a48-0952ff5d5f26")))
+	test.Ensure(t, validator(withUUID("Fc5a14b6-d08a-4280-9a48-0952ff5d5f26")))
 }
 
 func TestSchoolUnitCodeValidation(t *testing.T) {
@@ -35,11 +36,11 @@ func TestSchoolUnitCodeValidation(t *testing.T) {
 		}
 	}
 
-	Ensure(t, validator(withCode("12345679")))
-	MustFail(t, validator(withCode("1234567")))
-	MustFail(t, validator(withCode("abcdefgh")))
+	test.Ensure(t, validator(withCode("12345679")))
+	test.MustFail(t, validator(withCode("1234567")))
+	test.MustFail(t, validator(withCode("abcdefgh")))
 
 	// Non-SchoolUnit object
 	obj := &ss12000v1.Organisation{}
-	Ensure(t, validator(obj))
+	test.Ensure(t, validator(obj))
 }

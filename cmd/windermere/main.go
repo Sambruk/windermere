@@ -116,12 +116,12 @@ func parseClients(value interface{}) (map[string]string, error) {
 	}
 
 	for i := range arr {
-		client, ok := arr[i].(map[interface{}]interface{})
+		client, ok := arr[i].(map[string]interface{})
 		if !ok {
 			return nil, err
 		}
 
-		getString := func(m map[interface{}]interface{}, s string) (string, error) {
+		getString := func(m map[string]interface{}, s string) (string, error) {
 			val, ok := m[s]
 			if !ok {
 				return "", err
