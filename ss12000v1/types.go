@@ -259,10 +259,30 @@ func (e *Enrolment) UnmarshalJSON(data []byte) (err error) {
 	return
 }
 
+// UserRelation is a user relation as defined in SS12000:2018
+type UserRelation struct {
+	Value        string  `json:"value"`
+	Ref          string  `json:"$ref"`
+	RelationType string  `json:"relationType"`
+	DisplayName  *string `json:"displayName,omitempty"`
+}
+
+// UnmarshalJSON implements the interface for custom unmarshalling
+func (ur *UserRelation) UnmarshalJSON(data []byte) (err error) {
+	err = ensureRequired([]string{"value", "relationType"}, data)
+	if err != nil {
+		return
+	}
+	type userRelation2 UserRelation
+	err = json.Unmarshal(data, (*userRelation2)(ur))
+	return
+}
+
 // UserExtension is SS12000:2018's extension to the SCIM user object
 type UserExtension struct {
-	Enrolments []Enrolment `json:"enrolments,omitempty"`
-	CivicNo    *string     `json:"civicNo,omitempty"`
+	Enrolments    []Enrolment    `json:"enrolments,omitempty"`
+	CivicNo       *string        `json:"civicNo,omitempty"`
+	UserRelations []UserRelation `json:"userRelations,omitempty"`
 }
 
 // User is an SS12000:2018 user
