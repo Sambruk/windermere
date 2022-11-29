@@ -1,5 +1,9 @@
 ## Releases
 
+## v0.7.0 (2022-11-29)
+  - The User type now supports userRelations (#28)
+    userRelations are not supported by the SQL backend at the moment.
+
 ## v0.6.1 (2022-06-15)
   - Fixed parsing of Skolsynk clients after Viper upgrade (#25)
 
