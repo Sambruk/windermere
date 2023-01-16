@@ -1,5 +1,11 @@
 ## Releases
 
+## v0.8.0 (2023-01-16)
+  - The StudentGroup type now supports schoolType (#30)
+    This attribute is not supported by the SQL backend at the moment.
+  - The Activity type now supports parentActivity (#30)
+    This attribute is not supported by the SQL backend at the moment.
+
 ## v0.7.0 (2022-11-29)
   - The User type now supports userRelations (#28)
     userRelations are not supported by the SQL backend at the moment.
