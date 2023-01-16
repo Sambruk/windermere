@@ -137,21 +137,23 @@ func (su *SchoolUnit) UnmarshalJSON(data []byte) (err error) {
 
 // ActivityJSON is used to implement UnmarshalJSON for Activity
 type ActivityJSON struct {
-	ExternalID  string          `json:"externalId"`
-	DisplayName string          `json:"displayName"`
-	Owner       SCIMReference   `json:"owner"`
-	Group       *SCIMReference  `json:"group"`  // Incorrect according to spec, but used traditionally by the EGIL client
-	Groups      []SCIMReference `json:"groups"` // According to spec
-	Teachers    []SCIMReference `json:"teachers"`
+	ExternalID     string          `json:"externalId"`
+	DisplayName    string          `json:"displayName"`
+	Owner          SCIMReference   `json:"owner"`
+	Group          *SCIMReference  `json:"group"`  // Incorrect according to spec, but used traditionally by the EGIL client
+	Groups         []SCIMReference `json:"groups"` // According to spec
+	Teachers       []SCIMReference `json:"teachers"`
+	ParentActivity []SCIMReference `json:"parentActivity"`
 }
 
 // Activity represents an activity
 type Activity struct {
-	ExternalID  string          `json:"externalId"`
-	DisplayName string          `json:"displayName"`
-	Owner       SCIMReference   `json:"owner"` // The school unit
-	Groups      []SCIMReference `json:"groups"`
-	Teachers    []SCIMReference `json:"teachers"`
+	ExternalID     string          `json:"externalId"`
+	DisplayName    string          `json:"displayName"`
+	Owner          SCIMReference   `json:"owner"` // The school unit
+	Groups         []SCIMReference `json:"groups"`
+	Teachers       []SCIMReference `json:"teachers"`
+	ParentActivity []SCIMReference `json:"parentActivity"`
 }
 
 // GetID returns the objects UUID (id/externalId)
@@ -181,6 +183,7 @@ func (a *Activity) UnmarshalJSON(data []byte) error {
 		a.Groups = ajson.Groups
 	}
 	a.Teachers = ajson.Teachers
+	a.ParentActivity = ajson.ParentActivity
 
 	return nil
 }
@@ -198,6 +201,7 @@ type StudentGroup struct {
 	Owner              SCIMReference   `json:"owner"`              // The school unit
 	Type               *string         `json:"studentGroupType"`   // Type is the type of group (klass, undervisning...)
 	StudentMemberships []SCIMReference `json:"studentMemberships"` // StudentMemberships is a list of students in the group
+	SchoolType         *string         `json:"schoolType"`         // SchoolType is the type of education ("skolform", GR, GY etc.)
 }
 
 // GetID returns the objects UUID (id/externalId)
