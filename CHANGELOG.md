@@ -1,5 +1,14 @@
 ## Releases
 
+## v1.0.0 (2023-02-22)
+  Version 1.0.0 set to signal that Windermere is considered mature enough
+  for production deployment. Also to show intent to maintain backwards
+  compatibility (until v2.0), according to semantic versioning.
+
+  The only difference between previous version (v0.8.0) and v1.0.0 is updated
+  dependencies due to security alerts (GitHub dependabot). It doesn't seem
+  like the security alerts were relevant for Windermere.
+
 ## v0.8.0 (2023-01-16)
   - The StudentGroup type now supports schoolType (#30)
     This attribute is not supported by the SQL backend at the moment.
