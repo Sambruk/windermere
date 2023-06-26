@@ -13,7 +13,7 @@ Before getting started you need a few things:
  * A certificate to use in PEM format
  * A configuration file for Windermere
 
-You can find the URL and public keys for Moa (previously Kontosynk) at [Kontosynk](https://www.skolfederation.se/teknisk-information/kontosynk/tekniska-miljoer/)
+You can find the URL and public keys for Moa (previously Kontosynk) at [Kontosynk](https://www.skolfederation.se/teknisk-information/moa/tekniska-miljoer/)
 
 A certificate can be generated with OpenSSL, for instance:
 

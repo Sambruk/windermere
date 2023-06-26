@@ -137,21 +137,23 @@ func (su *SchoolUnit) UnmarshalJSON(data []byte) (err error) {
 
 // ActivityJSON is used to implement UnmarshalJSON for Activity
 type ActivityJSON struct {
-	ExternalID  string          `json:"externalId"`
-	DisplayName string          `json:"displayName"`
-	Owner       SCIMReference   `json:"owner"`
-	Group       *SCIMReference  `json:"group"`  // Incorrect according to spec, but used traditionally by the EGIL client
-	Groups      []SCIMReference `json:"groups"` // According to spec
-	Teachers    []SCIMReference `json:"teachers"`
+	ExternalID     string          `json:"externalId"`
+	DisplayName    string          `json:"displayName"`
+	Owner          SCIMReference   `json:"owner"`
+	Group          *SCIMReference  `json:"group"`  // Incorrect according to spec, but used traditionally by the EGIL client
+	Groups         []SCIMReference `json:"groups"` // According to spec
+	Teachers       []SCIMReference `json:"teachers"`
+	ParentActivity []SCIMReference `json:"parentActivity"`
 }
 
 // Activity represents an activity
 type Activity struct {
-	ExternalID  string          `json:"externalId"`
-	DisplayName string          `json:"displayName"`
-	Owner       SCIMReference   `json:"owner"` // The school unit
-	Groups      []SCIMReference `json:"groups"`
-	Teachers    []SCIMReference `json:"teachers"`
+	ExternalID     string          `json:"externalId"`
+	DisplayName    string          `json:"displayName"`
+	Owner          SCIMReference   `json:"owner"` // The school unit
+	Groups         []SCIMReference `json:"groups"`
+	Teachers       []SCIMReference `json:"teachers"`
+	ParentActivity []SCIMReference `json:"parentActivity"`
 }
 
 // GetID returns the objects UUID (id/externalId)
@@ -181,6 +183,7 @@ func (a *Activity) UnmarshalJSON(data []byte) error {
 		a.Groups = ajson.Groups
 	}
 	a.Teachers = ajson.Teachers
+	a.ParentActivity = ajson.ParentActivity
 
 	return nil
 }
@@ -198,6 +201,7 @@ type StudentGroup struct {
 	Owner              SCIMReference   `json:"owner"`              // The school unit
 	Type               *string         `json:"studentGroupType"`   // Type is the type of group (klass, undervisning...)
 	StudentMemberships []SCIMReference `json:"studentMemberships"` // StudentMemberships is a list of students in the group
+	SchoolType         *string         `json:"schoolType"`         // SchoolType is the type of education ("skolform", GR, GY etc.)
 }
 
 // GetID returns the objects UUID (id/externalId)
@@ -259,10 +263,30 @@ func (e *Enrolment) UnmarshalJSON(data []byte) (err error) {
 	return
 }
 
+// UserRelation is a user relation as defined in SS12000:2018
+type UserRelation struct {
+	Value        string  `json:"value"`
+	Ref          string  `json:"$ref"`
+	RelationType string  `json:"relationType"`
+	DisplayName  *string `json:"displayName,omitempty"`
+}
+
+// UnmarshalJSON implements the interface for custom unmarshalling
+func (ur *UserRelation) UnmarshalJSON(data []byte) (err error) {
+	err = ensureRequired([]string{"value", "relationType"}, data)
+	if err != nil {
+		return
+	}
+	type userRelation2 UserRelation
+	err = json.Unmarshal(data, (*userRelation2)(ur))
+	return
+}
+
 // UserExtension is SS12000:2018's extension to the SCIM user object
 type UserExtension struct {
-	Enrolments []Enrolment `json:"enrolments,omitempty"`
-	CivicNo    *string     `json:"civicNo,omitempty"`
+	Enrolments    []Enrolment    `json:"enrolments,omitempty"`
+	CivicNo       *string        `json:"civicNo,omitempty"`
+	UserRelations []UserRelation `json:"userRelations,omitempty"`
 }
 
 // User is an SS12000:2018 user

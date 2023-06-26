@@ -27,20 +27,9 @@ import (
 
 	"github.com/Sambruk/windermere/scimserverlite"
 	"github.com/Sambruk/windermere/ss12000v1"
+	"github.com/Sambruk/windermere/test"
 	"github.com/jmoiron/sqlx"
 )
-
-func Ensure(t *testing.T, err error) {
-	if err != nil {
-		t.Errorf("%v", err)
-	}
-}
-
-func MustFail(t *testing.T, err error) {
-	if err == nil {
-		t.Errorf("expected error")
-	}
-}
 
 //////////////////////////////////////////
 // Test data re-used in several test cases
@@ -275,10 +264,10 @@ func startTest(t *testing.T) *sqltestfixture {
 	initOnce.Do(initTestData)
 	var f sqltestfixture
 	db, err := sqlx.Open("sqlite", ":memory:")
-	Ensure(t, err)
+	test.Ensure(t, err)
 	parser := validatingObjectParser(CreateOptionalValidator(true, true), objectParser)
 	b, err := NewSQLBackend(db, parser)
-	Ensure(t, err)
+	test.Ensure(t, err)
 	f.b = b
 	f.db = db
 	return &f
@@ -287,28 +276,28 @@ func startTest(t *testing.T) *sqltestfixture {
 func TestCreate(t *testing.T) {
 	f := startTest(t)
 	_, err := f.b.Create(tenant1, "Users", bajeJSON)
-	Ensure(t, err)
+	test.Ensure(t, err)
 	_, err = f.b.Create(tenant1, "Users", bajeJSON)
-	MustFail(t, err)
+	test.MustFail(t, err)
 	scimError, ok := err.(scimserverlite.SCIMTypedError)
 	if !ok || scimError.Type() != scimserverlite.ConflictError {
 		t.Errorf("wrong error, expected conflict, got: %v", err)
 	}
 	_, err = f.b.Create(tenant1, "Users", ananJSON)
-	Ensure(t, err)
+	test.Ensure(t, err)
 	_, err = f.b.Create(tenant2, "Users", bajeJSON)
-	Ensure(t, err)
+	test.Ensure(t, err)
 }
 
 func TestUpdate(t *testing.T) {
 	f := startTest(t)
 	_, err := f.b.Create(tenant1, "Users", bajeJSON)
-	Ensure(t, err)
+	test.Ensure(t, err)
 
 	_, err = f.b.Update(tenant1, "Users", baje.GetID(), bajeNewUserName)
-	Ensure(t, err)
+	test.Ensure(t, err)
 	_, err = f.b.Update(tenant2, "Users", baje.GetID(), bajeJSON)
-	MustFail(t, err)
+	test.MustFail(t, err)
 	scimError, ok := err.(scimserverlite.SCIMTypedError)
 	if !ok || scimError.Type() != scimserverlite.MissingResourceError {
 		t.Errorf("wrong error, expected conflict, got: %v", err)
@@ -318,39 +307,39 @@ func TestUpdate(t *testing.T) {
 func TestDelete(t *testing.T) {
 	f := startTest(t)
 	err := f.b.Delete(tenant1, "Users", baje.GetID())
-	MustFail(t, err)
+	test.MustFail(t, err)
 	_, err = f.b.Create(tenant1, "Users", bajeJSON)
-	Ensure(t, err)
+	test.Ensure(t, err)
 	err = f.b.Delete(tenant1, "Users", baje.GetID())
-	Ensure(t, err)
+	test.Ensure(t, err)
 	_, err = f.b.Create(tenant1, "Users", bajeJSON)
-	Ensure(t, err)
+	test.Ensure(t, err)
 	err = f.b.Delete(tenant2, "Users", baje.GetID())
-	MustFail(t, err)
+	test.MustFail(t, err)
 }
 
 func TestClear(t *testing.T) {
 	f := startTest(t)
 	_, err := f.b.Create(tenant1, "Users", bajeJSON)
-	Ensure(t, err)
-	Ensure(t, f.b.Clear(tenant1))
+	test.Ensure(t, err)
+	test.Ensure(t, f.b.Clear(tenant1))
 	_, err = f.b.Create(tenant1, "Users", bajeJSON)
-	Ensure(t, err)
+	test.Ensure(t, err)
 	_, err = f.b.Create(tenant2, "Users", bajeJSON)
-	Ensure(t, err)
-	Ensure(t, f.b.Clear(tenant1))
+	test.Ensure(t, err)
+	test.Ensure(t, f.b.Clear(tenant1))
 	_, err = f.b.Create(tenant1, "Users", bajeJSON)
-	Ensure(t, err)
+	test.Ensure(t, err)
 	_, err = f.b.Create(tenant2, "Users", bajeJSON)
-	MustFail(t, err)
+	test.MustFail(t, err)
 }
 
 func TestGetParsedResource(t *testing.T) {
 	f := startTest(t)
 	_, err := f.b.Create(tenant1, "Users", bajeJSON)
-	Ensure(t, err)
+	test.Ensure(t, err)
 	obj, err := f.b.GetParsedResource(tenant1, "Users", baje.GetID())
-	Ensure(t, err)
+	test.Ensure(t, err)
 	if obj == nil {
 		t.Fatalf("Expected valid object from GetParsedResource, got nil")
 	}
@@ -365,9 +354,9 @@ func TestGetParsedResource(t *testing.T) {
 		t.Errorf("GetParsedResource returned user with unexpected UserName: %s", user.UserName)
 	}
 	_, err = f.b.Update(tenant1, "Users", baje.GetID(), bajeNewUserName)
-	Ensure(t, err)
+	test.Ensure(t, err)
 	obj, err = f.b.GetParsedResource(tenant1, "Users", baje.GetID())
-	Ensure(t, err)
+	test.Ensure(t, err)
 	if obj == nil {
 		t.Fatalf("Expected valid object from GetParsedResource, got nil")
 	}
@@ -383,18 +372,18 @@ func TestGetParsedResource(t *testing.T) {
 func TestGetParsedResources(t *testing.T) {
 	f := startTest(t)
 	users, err := f.b.GetParsedResources(tenant1, "Users")
-	Ensure(t, err)
+	test.Ensure(t, err)
 	if len(users) != 0 {
 		t.Errorf("Expected 0 users from GetParsedResources, got %d", len(users))
 	}
 
 	_, err = f.b.Create(tenant1, "Users", bajeJSON)
-	Ensure(t, err)
+	test.Ensure(t, err)
 	_, err = f.b.Create(tenant1, "Users", ananJSON)
-	Ensure(t, err)
+	test.Ensure(t, err)
 
 	users, err = f.b.GetParsedResources(tenant1, "Users")
-	Ensure(t, err)
+	test.Ensure(t, err)
 	if len(users) != 2 {
 		t.Fatalf("Expected 2 users from GetParsedResources, got %d", len(users))
 	}
@@ -419,12 +408,12 @@ func TestGetParsedResources(t *testing.T) {
 func TestGetResource(t *testing.T) {
 	f := startTest(t)
 	_, err := f.b.Create(tenant1, "Users", bajeJSON)
-	Ensure(t, err)
+	test.Ensure(t, err)
 	str, err := f.b.GetResource(tenant1, "Users", baje.GetID())
-	Ensure(t, err)
+	test.Ensure(t, err)
 	var user ss12000v1.User
 	err = json.Unmarshal([]byte(str), &user)
-	Ensure(t, err)
+	test.Ensure(t, err)
 	if user.GetID() != baje.GetID() {
 		t.Errorf("GetResource returned user with unexpected id: %s", user.GetID())
 	}
@@ -433,9 +422,9 @@ func TestGetResource(t *testing.T) {
 func TestDeleteCascade(t *testing.T) {
 	f := startTest(t)
 	_, err := f.b.Create(tenant1, "Users", liniJSON)
-	Ensure(t, err)
+	test.Ensure(t, err)
 	err = f.b.Delete(tenant1, "Users", lini.GetID())
-	Ensure(t, err)
+	test.Ensure(t, err)
 
 	named, _ := f.db.PrepareNamed(`SELECT 1 FROM Emails`)
 	var dest int
@@ -455,10 +444,10 @@ func TestIdentity(t *testing.T) {
 		} else {
 			_, err = f.b.Update(tenant, resourceType, id, json)
 		}
-		Ensure(t, err)
+		test.Ensure(t, err)
 
 		obj, err := f.b.GetParsedResource(tenant, resourceType, id)
-		Ensure(t, err)
+		test.Ensure(t, err)
 		if !reflect.DeepEqual(want, obj) {
 			t.Errorf("object of type %s wasn't the same after round-trip, expected %v\n,got %v\n", resourceType, want, obj)
 		}
@@ -505,7 +494,7 @@ func TestValidation(t *testing.T) {
 	`
 
 	_, err := f.b.Create(tenant1, "Organisations", badUUID)
-	MustFail(t, err)
+	test.MustFail(t, err)
 	scimError, ok := err.(scimserverlite.SCIMTypedError)
 	if !ok || scimError.Type() != scimserverlite.MalformedResourceError {
 		t.Errorf("wrong error, expected malformed resource, got: %v", err)
@@ -528,7 +517,7 @@ func TestValidation(t *testing.T) {
 	`
 
 	_, err = f.b.Create(tenant1, "SchoolUnits", badSchoolUnitCode)
-	MustFail(t, err)
+	test.MustFail(t, err)
 	scimError, ok = err.(scimserverlite.SCIMTypedError)
 	if !ok || scimError.Type() != scimserverlite.MalformedResourceError {
 		t.Errorf("wrong error, expected malformed resource, got: %v", err)

@@ -149,12 +149,12 @@ func parseClients(value interface{}) (map[string]string, error) {
 	}
 
 	for i := range arr {
-		client, ok := arr[i].(map[interface{}]interface{})
+		client, ok := arr[i].(map[string]interface{})
 		if !ok {
 			return nil, err
 		}
 
-		getString := func(m map[interface{}]interface{}, s string) (string, error) {
+		getString := func(m map[string]interface{}, s string) (string, error) {
 			val, ok := m[s]
 			if !ok {
 				return "", err
@@ -217,14 +217,14 @@ func run(signals chan os.Signal, done chan bool) {
 	enableLimiting := viper.GetBool(CNFEnableLimiting)
 
 	if enableLimiting {
-		handler = server.Limiter(handler,
+		handler = Limiter(handler, tenantGetter,
 			rate.Limit(viper.GetFloat64(CNFLimitRequestsPerSecond)),
 			viper.GetInt(CNFLimitBurst))
 	}
 
 	beTimeout := configuredSeconds(CNFBackendTimeout)
 	if beTimeout >= 1*time.Second {
-		handler = http.TimeoutHandler(handler, beTimeout, "Backend timeout")
+		handler = PanicReportTimeoutHandler(handler, beTimeout, "Backend timeout")
 	}
 
 	accessLogPath := viper.GetString(CNFAccessLogPath)
