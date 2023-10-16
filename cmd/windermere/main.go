@@ -102,6 +102,7 @@ const (
 	CNFSkolsynkCert           = "SkolsynkCert"
 	CNFSkolsynkKey            = "SkolsynkKey"
 	CNFSkolsynkClients        = "SkolsynkClients"
+	CNFSS12000v2ListenAddress = "SS12000v2ListenAddress"
 )
 
 // Parses the config value for clients to a map[string]string
@@ -349,6 +350,27 @@ func main() {
 			viper.GetString(CNFMDOrganization), viper.GetString(CNFMDOrganizationID)))
 		go func() {
 			log.Println(http.ListenAndServeTLS(adminAddress, certFile, keyFile, nil))
+		}()
+	}
+
+	// Possibly create the SS12000 v2 HTTP server
+	if viper.IsSet(CNFSS12000v2ListenAddress) {
+		ss12000v2Server := &http.Server{
+			Handler: NewSS12000v2TenantMux(wind),
+			Addr:    viper.GetString(CNFSS12000v2ListenAddress),
+
+			ReadHeaderTimeout: configuredSeconds(CNFReadHeaderTimeout),
+			ReadTimeout:       configuredSeconds(CNFReadTimeout),
+			WriteTimeout:      configuredSeconds(CNFWriteTimeout),
+			IdleTimeout:       configuredSeconds(CNFIdleTimeout),
+		}
+		// TODO: Needs a proper goroutine which can be asked to quit?
+		go func() {
+			err := ss12000v2Server.ListenAndServe()
+
+			if err != http.ErrServerClosed {
+				log.Fatalf("Unexpected SS12000v2 server exit: %s", err.Error())
+			}
 		}()
 	}
 
