@@ -391,13 +391,23 @@ func (backend *SQLBackend) objectReaderOne(tx *sqlx.Tx, resourceType, tenant, id
 	}
 }
 
-func (backend *SQLBackend) Create(tenant, resourceType, resource string) (string, error) {
+func (backend *SQLBackend) create(tx *sqlx.Tx, tenant string, resourceType string, obj ss12000v1.Object) error {
 	table, err := mainTable(resourceType)
 
 	if err != nil {
-		return "", err
+		return err
 	}
 
+	err = ensureDoesntHaveRecord(tx, table, tenant, obj.GetID())
+	if err != nil {
+		return err
+	}
+
+	_, err = backend.objectCreator(tx, tenant, obj)
+	return err
+}
+
+func (backend *SQLBackend) Create(tenant, resourceType, resource string) (string, error) {
 	obj, err := backend.objectParser(resourceType, resource)
 
 	if err != nil {
@@ -412,12 +422,7 @@ func (backend *SQLBackend) Create(tenant, resourceType, resource string) (string
 
 	defer tx.Rollback()
 
-	err = ensureDoesntHaveRecord(tx, table, tenant, obj.GetID())
-	if err != nil {
-		return "", err
-	}
-
-	_, err = backend.objectCreator(tx, tenant, obj)
+	err = backend.create(tx, tenant, resourceType, obj)
 
 	if err != nil {
 		return "", err
@@ -439,13 +444,22 @@ func (backend *SQLBackend) Create(tenant, resourceType, resource string) (string
 	return string(body), nil
 }
 
-func (backend *SQLBackend) Update(tenant, resourceType, resourceID, resource string) (string, error) {
+func (backend *SQLBackend) update(tx *sqlx.Tx, tenant string, resourceType string, resourceID string, obj ss12000v1.Object) error {
 	table, err := mainTable(resourceType)
 
 	if err != nil {
-		return "", err
+		return err
 	}
 
+	err = ensureHasRecord(tx, table, tenant, resourceID)
+	if err != nil {
+		return err
+	}
+
+	return backend.objectMutator(tx, tenant, obj)
+}
+
+func (backend *SQLBackend) Update(tenant, resourceType, resourceID, resource string) (string, error) {
 	obj, err := backend.objectParser(resourceType, resource)
 
 	if err != nil {
@@ -460,13 +474,7 @@ func (backend *SQLBackend) Update(tenant, resourceType, resourceID, resource str
 
 	defer tx.Rollback()
 
-	err = ensureHasRecord(tx, table, tenant, resourceID)
-	if err != nil {
-		return "", err
-	}
-
-	err = backend.objectMutator(tx, tenant, obj)
-
+	err = backend.update(tx, tenant, resourceType, resourceID, obj)
 	if err != nil {
 		return "", err
 	}
@@ -519,20 +527,12 @@ func ensureDoesntHaveRecord(tx *sqlx.Tx, table safeString, tenant, resourceID st
 	return nil
 }
 
-func (backend *SQLBackend) Delete(tenant, resourceType, resourceID string) error {
+func (backend *SQLBackend) delete(tx *sqlx.Tx, tenant string, resourceType, resourceID string) error {
 	table, err := mainTable(resourceType)
 
 	if err != nil {
 		return err
 	}
-
-	tx, err := backend.db.Beginx()
-
-	if err != nil {
-		return err
-	}
-
-	defer tx.Rollback()
 
 	err = ensureHasRecord(tx, table, tenant, resourceID)
 	if err != nil {
@@ -545,11 +545,153 @@ func (backend *SQLBackend) Delete(tenant, resourceType, resourceID string) error
 			"id":     resourceID,
 		})
 
+	return err
+}
+
+func (backend *SQLBackend) Delete(tenant, resourceType, resourceID string) error {
+	tx, err := backend.db.Beginx()
+
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+
+	err = backend.delete(tx, tenant, resourceType, resourceID)
 	if err != nil {
 		return err
 	}
 
 	return tx.Commit()
+}
+
+func (backend *SQLBackend) Bulk(tenant string, operations []scimserverlite.BulkOperation) ([]scimserverlite.BulkOperationResult, error) {
+	// TODO: Add protection against too many failures?
+	//       Since failures means new transactions we don't want to do too many if there
+	//       are thousands of bad bulk operations.
+	//       On the other hand SCIM specification might not allow that.
+	//
+	// TODO: Currently parse failures are treated like database constraint errors, so parse
+	//       errors can lead to many unnecessary transactions and restarted transactions.
+	//       Currently the Bulk function is only used by the SS1200v2 import which means
+	//       we shouldn't have parse errors. If this is used for SCIM bulk requests however
+	//       we should probably pre-parse all objects and handle parse errors separately before
+	//       dealing with the objects that parsed correctly. If we do that we should make sure
+	//       to still return the results in the same order as the bulk operations.
+	const TransactionMaxSize = 50
+
+	bulkSize := len(operations)
+	if bulkSize == 0 {
+		return nil, nil
+	} else if bulkSize == 1 {
+		op := operations[0]
+		var err error
+		switch op.Type {
+		case scimserverlite.CreateOperation:
+			_, err = backend.Create(tenant, op.ResourceType, op.Resource)
+		case scimserverlite.UpdateOperation:
+			_, err = backend.Update(tenant, op.ResourceType, op.ResourceID, op.Resource)
+		case scimserverlite.DeleteOperation:
+			err = backend.Delete(tenant, op.ResourceType, op.ResourceID)
+		default:
+			err = fmt.Errorf("Unexpected bulk operation: %v", op.Type)
+		}
+		return []scimserverlite.BulkOperationResult{scimserverlite.NewBulkOperationResult(op, err)}, nil
+	} else if bulkSize > TransactionMaxSize {
+		mid := bulkSize / 2
+		listA, err := backend.Bulk(tenant, operations[0:mid])
+		if err != nil {
+			return nil, err
+		}
+		listB, err := backend.Bulk(tenant, operations[mid:])
+		if err != nil {
+			return nil, err
+		}
+		return append(listA, listB...), nil
+	}
+
+	tx, err := backend.db.Beginx()
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer tx.Rollback()
+
+	resultList := make([]scimserverlite.BulkOperationResult, 0)
+	for i, op := range operations {
+		var err error
+		var obj ss12000v1.Object
+		if op.Type == scimserverlite.CreateOperation || op.Type == scimserverlite.UpdateOperation {
+			obj, err = backend.objectParser(op.ResourceType, op.Resource)
+
+			if err != nil {
+				err = scim.NewError(scim.MalformedResourceError, "Failed to parse resource:\n"+err.Error())
+			}
+		}
+		if err == nil {
+			switch op.Type {
+			case scimserverlite.CreateOperation:
+				err = backend.create(tx, tenant, op.ResourceType, obj)
+			case scimserverlite.UpdateOperation:
+				err = backend.update(tx, tenant, op.ResourceType, op.ResourceID, obj)
+			case scimserverlite.DeleteOperation:
+				err = backend.delete(tx, tenant, op.ResourceType, op.ResourceID)
+			default:
+				err = fmt.Errorf("Unexpected bulk operation: %v", op.Type)
+			}
+		}
+		if err != nil {
+			tx.Rollback()
+			// TODO: if the failure is on i == 0 we don't need to retry that one, we can just
+			//        accept that result and carry on with the rest in a new transaction.
+			listA, err := backend.Bulk(tenant, operations[0:i])
+			if err != nil {
+				return nil, err
+			}
+			listB, err := backend.Bulk(tenant, operations[i:i+1])
+			if err != nil {
+				return nil, err
+			}
+			listC, err := backend.Bulk(tenant, operations[i+1:])
+			if err != nil {
+				return nil, err
+			}
+			resultList = append(listA, listB...)
+			resultList = append(resultList, listC...)
+			return resultList, nil
+		} else {
+			resultList = append(resultList, scim.NewBulkOperationResult(op, nil))
+		}
+	}
+
+	err = tx.Commit()
+
+	if err != nil {
+		return nil, err
+	}
+
+	// If we get here it means we were able to execute all operations
+	// without errors but failed to commit the whole transaction.
+	// In this case we'll simply run the operations in individual transactions
+	// instead.
+	resultList = make([]scimserverlite.BulkOperationResult, 0)
+	for _, op := range operations {
+		var err error
+		switch op.Type {
+		case scimserverlite.CreateOperation:
+			_, err = backend.Create(tenant, op.ResourceType, op.Resource)
+		case scimserverlite.UpdateOperation:
+			_, err = backend.Update(tenant, op.ResourceType, op.ResourceID, op.Resource)
+		case scimserverlite.DeleteOperation:
+			err = backend.Delete(tenant, op.ResourceType, op.ResourceID)
+		default:
+			err = fmt.Errorf("Unexpected bulk operation: %v", op.Type)
+		}
+		resultList = append(resultList, scim.NewBulkOperationResult(op, err))
+	}
+
+	return resultList, nil
 }
 
 func (backend *SQLBackend) Clear(tenant string) error {

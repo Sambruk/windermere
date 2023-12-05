@@ -163,6 +163,23 @@ func (backend *InMemoryBackend) Delete(tenant, resourceType, resourceID string) 
 	return nil
 }
 
+func (backend *InMemoryBackend) Bulk(tenant string, operations []BulkOperation) ([]BulkOperationResult, error) {
+	result := make([]BulkOperationResult, 0)
+	for _, op := range operations {
+		var err error
+		switch op.Type {
+		case CreateOperation:
+			_, err = backend.Create(tenant, op.ResourceType, op.Resource)
+		case UpdateOperation:
+			_, err = backend.Update(tenant, op.ResourceType, op.ResourceID, op.Resource)
+		case DeleteOperation:
+			err = backend.Delete(tenant, op.ResourceType, op.ResourceID)
+		}
+		result = append(result, NewBulkOperationResult(op, err))
+	}
+	return result, nil
+}
+
 // Clear will remove all resources for a given tenant in the backend
 func (backend *InMemoryBackend) Clear(tenant string) error {
 	backend.lock.Lock()
