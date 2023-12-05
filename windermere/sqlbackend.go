@@ -643,8 +643,21 @@ func (backend *SQLBackend) Bulk(tenant string, operations []scimserverlite.BulkO
 		}
 		if err != nil {
 			tx.Rollback()
-			// TODO: if the failure is on i == 0 we don't need to retry that one, we can just
-			//        accept that result and carry on with the rest in a new transaction.
+			// If the failure was already on the first operation in the transaction,
+			// there's no need to retry that one, we can just accept the failure and
+			// continue with the rest of the operations in a new transaction.
+			if i == 0 {
+				resultList = append(resultList, scim.NewBulkOperationResult(op, err))
+				rest, err := backend.Bulk(tenant, operations[1:])
+				if err != nil {
+					return nil, err
+				}
+				resultList = append(resultList, rest...)
+				return resultList, nil
+			}
+
+			// Otherwise we re-run the operations before the failure in a separate
+			// transaction, retry this one separately, and the rest separately.
 			listA, err := backend.Bulk(tenant, operations[0:i])
 			if err != nil {
 				return nil, err
@@ -667,9 +680,11 @@ func (backend *SQLBackend) Bulk(tenant string, operations []scimserverlite.BulkO
 
 	err = tx.Commit()
 
-	if err != nil {
-		return nil, err
+	if err == nil {
+		return resultList, nil
 	}
+
+	tx.Rollback() // Not necessary after a failed Commit?
 
 	// If we get here it means we were able to execute all operations
 	// without errors but failed to commit the whole transaction.

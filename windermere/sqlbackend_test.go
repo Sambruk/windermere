@@ -523,3 +523,66 @@ func TestValidation(t *testing.T) {
 		t.Errorf("wrong error, expected malformed resource, got: %v", err)
 	}
 }
+
+func TestBulkCreate(t *testing.T) {
+	f := startTest(t)
+	operations := make([]scimserverlite.BulkOperation, 0)
+	operations = append(operations, scimserverlite.NewBulkCreateOperation("Users", bajeJSON))
+	operations = append(operations, scimserverlite.NewBulkCreateOperation("Users", ananJSON))
+
+	results, err := f.b.Bulk(tenant1, operations)
+
+	test.Ensure(t, err)
+	if len(results) != len(operations) {
+		t.Errorf("incorrect number of results from bulk operation, got %d, expected %d", len(results), len(operations))
+	}
+
+	for i := range results {
+		test.Ensure(t, results[i].Error)
+	}
+
+	resources, err := f.b.GetParsedResources(tenant1, "Users")
+	test.Ensure(t, err)
+	if len(resources) != 2 {
+		t.Errorf("incorrect number of users after bulk create: %d", len(resources))
+	}
+}
+
+func TestBulkErrors(t *testing.T) {
+	f := startTest(t)
+	operations := make([]scimserverlite.BulkOperation, 0)
+	// Only the second operation should fail
+	operations = append(operations, scimserverlite.NewBulkCreateOperation("Users", bajeJSON))
+	operations = append(operations, scimserverlite.NewBulkDeleteOperation("Users", "88c0f298-8e33-4566-ace7-6e26228a9bc6"))
+	operations = append(operations, scimserverlite.NewBulkCreateOperation("Users", ananJSON))
+
+	results, err := f.b.Bulk(tenant1, operations)
+
+	test.Ensure(t, err)
+	if len(results) != len(operations) {
+		t.Errorf("incorrect number of results from bulk operation, got %d, expected %d", len(results), len(operations))
+	}
+
+	test.Ensure(t, results[0].Error)
+	test.MustFail(t, results[1].Error)
+	test.Ensure(t, results[2].Error)
+
+	resources, err := f.b.GetParsedResources(tenant1, "Users")
+	test.Ensure(t, err)
+	if len(resources) != 2 {
+		t.Errorf("incorrect number of users after bulk create: %d", len(resources))
+	}
+
+	// Same job again backwards, only the middle operation should succeed
+	operations[0], operations[2] = operations[2], operations[0]
+	results, err = f.b.Bulk(tenant1, operations)
+
+	test.Ensure(t, err)
+	if len(results) != len(operations) {
+		t.Errorf("incorrect number of results from bulk operation, got %d, expected %d", len(results), len(operations))
+	}
+
+	test.MustFail(t, results[0].Error)
+	test.Ensure(t, results[1].Error)
+	test.MustFail(t, results[2].Error)
+}
