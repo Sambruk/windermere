@@ -60,6 +60,14 @@ type dbEnrolmentRow struct {
 	SchoolYear *int   `db:"schoolYear"`
 }
 
+type dbExternalIdentifierRow struct {
+	Tenant         string `db:"tenant"`
+	UserId         string `db:"userId"`
+	Value          string `db:"value"`
+	Context        string `db:"context"`
+	GloballyUnique int    `db:"globallyUnique"`
+}
+
 func (backend *SQLBackend) createEmails(tx *sqlx.Tx, tenant string, user *ss12000v1.User) (err error) {
 	if len(user.Emails) == 0 {
 		return nil
@@ -100,6 +108,30 @@ func (backend *SQLBackend) createEnrolments(tx *sqlx.Tx, tenant string, user *ss
 	return
 }
 
+func (backend *SQLBackend) createExternalIdentifiers(tx *sqlx.Tx, tenant string, user *ss12000v1.User) (err error) {
+	if user.EgilExtension == nil || len(user.EgilExtension.ExternalIdentifiers) == 0 {
+		return nil
+	}
+	dbExternalIdentifiers := make([]dbExternalIdentifierRow, len(user.EgilExtension.ExternalIdentifiers))
+
+	for i := range user.EgilExtension.ExternalIdentifiers {
+		globallyUniqueInt := 0
+		if user.EgilExtension.ExternalIdentifiers[i].GloballyUnique {
+			globallyUniqueInt = 1
+		}
+		dbExternalIdentifiers[i] = dbExternalIdentifierRow{
+			Tenant:         tenant,
+			UserId:         user.ID,
+			Value:          user.EgilExtension.ExternalIdentifiers[i].Value,
+			Context:        user.EgilExtension.ExternalIdentifiers[i].Context,
+			GloballyUnique: globallyUniqueInt,
+		}
+	}
+
+	_, err = tx.NamedExec(`INSERT INTO ExternalIdentifiers (tenant, userId, value, context, globallyUnique) VALUES (:tenant, :userId, :value, :context, :globallyUnique)`, dbExternalIdentifiers)
+	return
+}
+
 func (backend *SQLBackend) userCreator(tx *sqlx.Tx, tenant string, user *ss12000v1.User) (id string, err error) {
 	dbUser := NewUserRow(tenant, user)
 
@@ -113,6 +145,10 @@ func (backend *SQLBackend) userCreator(tx *sqlx.Tx, tenant string, user *ss12000
 		return "", err
 	}
 	err = backend.createEnrolments(tx, tenant, user)
+	if err != nil {
+		return "", err
+	}
+	err = backend.createExternalIdentifiers(tx, tenant, user)
 	return user.ID, err
 }
 
@@ -150,10 +186,26 @@ func (backend *SQLBackend) userMutator(tx *sqlx.Tx, tenant string, user *ss12000
 		return err
 	}
 
-	return backend.createEnrolments(tx, tenant, user)
+	err = backend.createEnrolments(tx, tenant, user)
+
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.NamedExec(`DELETE FROM ExternalIdentifiers WHERE tenant = :tenant AND userId = :userId`,
+		map[string]interface{}{
+			"tenant": tenant,
+			"userId": user.ID,
+		})
+
+	if err != nil {
+		return err
+	}
+
+	return backend.createExternalIdentifiers(tx, tenant, user)
 }
 
-func (backend *SQLBackend) userReader(tx *sqlx.Tx, mainQuery, emailQuery, enrolmentQuery string, args map[string]interface{}) ([]ss12000v1.Object, error) {
+func (backend *SQLBackend) userReader(tx *sqlx.Tx, mainQuery, emailQuery, enrolmentQuery, externalIdentifiersQuery string, args map[string]interface{}) ([]ss12000v1.Object, error) {
 	mainNamed, err := tx.PrepareNamed(mainQuery)
 	if err != nil {
 		return nil, err
@@ -164,6 +216,11 @@ func (backend *SQLBackend) userReader(tx *sqlx.Tx, mainQuery, emailQuery, enrolm
 	}
 
 	enrolmentNamed, err := tx.PrepareNamed(enrolmentQuery)
+	if err != nil {
+		return nil, err
+	}
+
+	externalIdentifiersNamed, err := tx.PrepareNamed(externalIdentifiersQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -224,6 +281,27 @@ func (backend *SQLBackend) userReader(tx *sqlx.Tx, mainQuery, emailQuery, enrolm
 			})
 	}
 
+	dbExternalIdentifiers := []dbExternalIdentifierRow{}
+	err = externalIdentifiersNamed.Select(&dbExternalIdentifiers, args)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range dbExternalIdentifiers {
+		externalIdentifier := &dbExternalIdentifiers[i]
+		user := users[index[externalIdentifier.UserId]].(*ss12000v1.User)
+
+		if user.EgilExtension == nil {
+			user.EgilExtension = &ss12000v1.EgilUserExtension{}
+		}
+		var ei ss12000v1.ExternalIdentifier
+		ei.Value = externalIdentifier.Value
+		ei.Context = externalIdentifier.Context
+		ei.GloballyUnique = externalIdentifier.GloballyUnique != 0
+
+		user.EgilExtension.ExternalIdentifiers = append(user.EgilExtension.ExternalIdentifiers, ei)
+	}
+
 	return users, nil
 }
 
@@ -231,6 +309,7 @@ func (backend *SQLBackend) userReaderAll(tx *sqlx.Tx, tenant string) ([]ss12000v
 	return backend.userReader(tx, `SELECT * FROM Users WHERE tenant = :tenant`,
 		`SELECT * FROM Emails WHERE tenant = :tenant`,
 		`SELECT * FROM Enrolments WHERE tenant = :tenant`,
+		`SELECT * FROM ExternalIdentifiers WHERE tenant = :tenant`,
 		map[string]interface{}{
 			"tenant": tenant,
 		})
@@ -240,6 +319,7 @@ func (backend *SQLBackend) userReaderOne(tx *sqlx.Tx, tenant, id string) (ss1200
 	users, err := backend.userReader(tx, `SELECT * FROM Users WHERE tenant = :tenant AND id = :id`,
 		`SELECT * FROM Emails WHERE tenant = :tenant AND userId = :id`,
 		`SELECT * FROM Enrolments WHERE tenant = :tenant AND userId = :id`,
+		`SELECT * FROM ExternalIdentifiers WHERE tenant = :tenant AND userId = :id`,
 		map[string]interface{}{
 			"tenant": tenant,
 			"id":     id,

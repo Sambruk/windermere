@@ -2,3 +2,5 @@
 
 cmd/windermere/windermere
 cmd/windermere/windermere.exe
+cmd/downgrade/downgrade
+cmd/downgrade/downgrade.exe

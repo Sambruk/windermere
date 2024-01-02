@@ -289,14 +289,29 @@ type UserExtension struct {
 	UserRelations []UserRelation `json:"userRelations,omitempty"`
 }
 
+// ExternalIdentifier is taken from SS12000:2020 in order to support
+// import from a SS12000:2020 source.
+type ExternalIdentifier struct {
+	Value          string `json:"value"`
+	Context        string `json:"context"`
+	GloballyUnique bool   `json:"globallyUnique"`
+}
+
+// EgilUserExtension is a non-standard extension, currently only containing
+// external identifiers.
+type EgilUserExtension struct {
+	ExternalIdentifiers []ExternalIdentifier `json:"externalIdentifiers,omitempty"`
+}
+
 // User is an SS12000:2018 user
 type User struct {
-	ID          string        `json:"externalId"`                                     // ID is the UUID for the student group
-	UserName    string        `json:"userName"`                                       // UserName is the user's EPPN
-	Name        SCIMName      `json:"name"`                                           // Name is the user's real name (given/family name etc.)
-	DisplayName string        `json:"displayName"`                                    // DisplayName is what to show (required in EGIL, not in SS12000:2018 it seems)
-	Emails      []SCIMEmail   `json:"emails"`                                         // Emails is the user's email addresses
-	Extension   UserExtension `json:"urn:scim:schemas:extension:sis:school:1.0:User"` // Extension is the SS12000:2028 SCIM extension
+	ID            string             `json:"externalId"`                                         // ID is the UUID for the student group
+	UserName      string             `json:"userName"`                                           // UserName is the user's EPPN
+	Name          SCIMName           `json:"name"`                                               // Name is the user's real name (given/family name etc.)
+	DisplayName   string             `json:"displayName"`                                        // DisplayName is what to show (required in EGIL, not in SS12000:2018 it seems)
+	Emails        []SCIMEmail        `json:"emails"`                                             // Emails is the user's email addresses
+	Extension     UserExtension      `json:"urn:scim:schemas:extension:sis:school:1.0:User"`     // Extension is the SS12000:2018 SCIM extension
+	EgilExtension *EgilUserExtension `json:"urn:scim:schemas:extension:egil:1.0:User,omitempty"` // Non-standard extension for external identifiers
 }
 
 // GetID returns the objects UUID (id/externalId)

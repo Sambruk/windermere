@@ -28,6 +28,7 @@ import (
 
 	"github.com/Sambruk/windermere/scimserverlite"
 	"github.com/Sambruk/windermere/ss12000v1"
+	"github.com/Sambruk/windermere/ss12000v2import"
 	_ "github.com/denisenkom/go-mssqldb"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
@@ -35,10 +36,11 @@ import (
 )
 
 type Windermere struct {
-	backend     scimserverlite.Backend
-	backingPath string
-	server      *scimserverlite.Server
-	handler     http.Handler
+	backend             scimserverlite.Backend
+	v2tov1ImportBackend ss12000v2import.SS12000v1Backend
+	backingPath         string
+	server              *scimserverlite.Server
+	handler             http.Handler
 }
 
 func (wind *Windermere) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -47,6 +49,22 @@ func (wind *Windermere) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (wind *Windermere) Shutdown() error {
 	return wind.Save()
+}
+
+func openDB(driverName string, dataSourceName string) (*sqlx.DB, error) {
+	db, err := sqlx.Open(driverName, dataSourceName)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Recommended by the MySQL driver documentation,
+	// should perhaps be configurable?
+	db.SetConnMaxLifetime(time.Minute * 3)
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(10)
+
+	return db, nil
 }
 
 func New(backingType, backingSource string, tenantGetter scimserverlite.TenantGetter, v Validator) (*Windermere, error) {
@@ -67,17 +85,11 @@ func New(backingType, backingSource string, tenantGetter scimserverlite.TenantGe
 		}
 		b = inMemoryBackend
 	} else {
-		db, err := sqlx.Open(backingType, backingSource)
+		db, err := openDB(backingType, backingSource)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to open connection to database: %v", err)
 		}
-
-		// Recommended by the MySQL driver documentation,
-		// should perhaps be configurable?
-		db.SetConnMaxLifetime(time.Minute * 3)
-		db.SetMaxOpenConns(10)
-		db.SetMaxIdleConns(10)
 
 		sqlBackend, err := NewSQLBackend(db, parser)
 
@@ -93,10 +105,11 @@ func New(backingType, backingSource string, tenantGetter scimserverlite.TenantGe
 	s := scimserverlite.NewServer(endpoints, b, tenantGetter)
 
 	result := &Windermere{
-		backend:     b,
-		backingPath: backingSource,
-		server:      s,
-		handler:     putCompatibilityHandler(s),
+		backend:             b,
+		v2tov1ImportBackend: NewV2toV1ImportBackendAdapter(b),
+		backingPath:         backingSource,
+		server:              s,
+		handler:             putCompatibilityHandler(s),
 	}
 
 	return result, nil
@@ -223,4 +236,12 @@ func validatingObjectParser(validate Validator, parse ObjectParser) ObjectParser
 		}
 		return obj, nil
 	}
+}
+
+func (w *Windermere) GetSS12000v2tov1Backend() (ss12000v2import.SS12000v1Backend, error) {
+	b := w.v2tov1ImportBackend
+	if b == nil {
+		return nil, fmt.Errorf("failed to return SCIM backend suitable for SS12000:2020 to SS12000:2018 import")
+	}
+	return b, nil
 }

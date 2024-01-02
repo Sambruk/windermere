@@ -586,3 +586,131 @@ func TestBulkErrors(t *testing.T) {
 	test.Ensure(t, results[1].Error)
 	test.MustFail(t, results[2].Error)
 }
+
+func TestExternalIdentifiers(t *testing.T) {
+	var bajeWithExternalsJSON = `
+	{
+		"schemas": ["urn:ietf:params:scim:schemas:core:2.0:User",
+					"urn:scim:schemas:extension:sis:school:1.0:User"],
+		"externalId": "75c666db-e60e-4687-bdd3-1af191fa6799",
+		"userName": "baje@skola.kommunen.se",
+		"displayName": "Babs Jensen",
+		"name": {
+			"familyName": "Jensen",
+			"givenName": "Barbara"
+		},
+		"emails": [
+			
+			{
+			  "value": "baje@skolan.kommunen.se" 
+			} 
+			
+		],
+		"urn:scim:schemas:extension:egil:1.0:User": {
+			"externalIdentifiers": [
+				{
+					"value": "baje@edu.kommunen.se",
+					"context": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+					"globallyUnique": true
+				},
+				{
+					"value": "baje",
+					"context": "local",
+					"globallyUnique": false
+				}
+			]
+		}
+	}
+	`
+
+	f := startTest(t)
+	_, err := f.b.Create(tenant1, "Users", bajeWithExternalsJSON)
+	test.Ensure(t, err)
+	obj, err := f.b.GetParsedResource(tenant1, "Users", "75c666db-e60e-4687-bdd3-1af191fa6799")
+	test.Ensure(t, err)
+
+	bajeParsed, ok := obj.(*ss12000v1.User)
+	if !ok {
+		t.Fatalf("Returned object wasn't of the correct type (expected *ss12000v1.User)")
+	}
+	if bajeParsed.EgilExtension == nil ||
+		len(bajeParsed.EgilExtension.ExternalIdentifiers) != 2 {
+		t.Fatalf("Incorrect number of external identifiers after Create/Get")
+	}
+	id1 := ss12000v1.ExternalIdentifier{
+		Value:          "baje@edu.kommunen.se",
+		Context:        "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+		GloballyUnique: true,
+	}
+	id2 := ss12000v1.ExternalIdentifier{
+		Value:          "baje",
+		Context:        "local",
+		GloballyUnique: false,
+	}
+
+	if bajeParsed.EgilExtension.ExternalIdentifiers[0] != id1 {
+		t.Errorf("Incorrect external identifier, got %v, wanted %v", bajeParsed.EgilExtension.ExternalIdentifiers[0], id1)
+	}
+	if bajeParsed.EgilExtension.ExternalIdentifiers[1] != id2 {
+		t.Errorf("Incorrect external identifier, got %v, wanted %v", bajeParsed.EgilExtension.ExternalIdentifiers[1], id2)
+	}
+
+	var updatedJSON = `
+	{
+		"schemas": ["urn:ietf:params:scim:schemas:core:2.0:User",
+					"urn:scim:schemas:extension:sis:school:1.0:User"],
+		"externalId": "75c666db-e60e-4687-bdd3-1af191fa6799",
+		"userName": "baje@skola.kommunen.se",
+		"displayName": "Babs Jensen",
+		"name": {
+			"familyName": "Jensen",
+			"givenName": "Barbara"
+		},
+		"emails": [
+			
+			{
+			  "value": "baje@skolan.kommunen.se" 
+			} 
+			
+		],
+		"urn:scim:schemas:extension:egil:1.0:User": {
+			"externalIdentifiers": [
+				{
+					"value": "baje@staff.kommunen.se",
+					"context": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+					"globallyUnique": true
+				},
+				{
+					"value": "baje",
+					"context": "ad",
+					"globallyUnique": false
+				}
+			]
+		}
+	}
+	`
+
+	_, err = f.b.Update(tenant1, "Users", "75c666db-e60e-4687-bdd3-1af191fa6799", updatedJSON)
+	test.Ensure(t, err)
+	obj, err = f.b.GetParsedResource(tenant1, "Users", "75c666db-e60e-4687-bdd3-1af191fa6799")
+	test.Ensure(t, err)
+
+	bajeParsed, ok = obj.(*ss12000v1.User)
+	if !ok {
+		t.Fatalf("Returned object wasn't of the correct type (expected *ss12000v1.User)")
+	}
+	if bajeParsed.EgilExtension == nil ||
+		len(bajeParsed.EgilExtension.ExternalIdentifiers) != 2 {
+		t.Fatalf("Incorrect number of external identifiers after Create/Get")
+	}
+	id1.Value = "baje@staff.kommunen.se"
+	id2.Context = "ad"
+
+	if bajeParsed.EgilExtension.ExternalIdentifiers[0] != id1 {
+		t.Errorf("Incorrect external identifier, got %v, wanted %v", bajeParsed.EgilExtension.ExternalIdentifiers[0], id1)
+	}
+	if bajeParsed.EgilExtension.ExternalIdentifiers[1] != id2 {
+		t.Errorf("Incorrect external identifier, got %v, wanted %v", bajeParsed.EgilExtension.ExternalIdentifiers[1], id2)
+	}
+
+}

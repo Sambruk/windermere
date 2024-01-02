@@ -189,3 +189,25 @@ SkolsynkKey: /home/windermere/skolsynkkey.pem
 
 You can choose to run only Federated TLS (Moa), only Skolsynk, or both at the same
 time (by configuring `ListenAddress` and/or `SkolsynkListenAddress`).
+
+## Database migrations
+If you upgrade Windermere to a version which modifies the database schema it will not
+be possible to go back to an older version without first doing a database downgrade.
+
+To perform a database downgrade you must first build the downgrade command which is
+found under `cmd/downgrade`. To build, just go to that directory and run `go build`.
+
+To downgrade, run the command and specify how to connect to the database and which
+database version to downgrade to. For instance:
+
+```
+./downgrade -storagetype mysql -storagesource root:my-secret-pw@/windermere?multiStatements=true -downgradeto 1
+```
+
+The example above will downgrade to version 1 of the database schema for an example
+MySQL database.
+
+The settings for `-storagetype` and `-storagesource` should be the same as the ones used
+in your `config.yaml`.
+
+Make sure Windermere isn't running while the downgrade is performed.

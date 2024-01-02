@@ -100,6 +100,7 @@ var tablesForClearTenant = []safeString{
 }
 
 var migrations = [...]string{
+	// v1, initial schema version
 	`	
 	CREATE TABLE windermere_meta (
 		version INT NOT NULL
@@ -225,14 +226,45 @@ var migrations = [...]string{
 
 	CREATE INDEX ActivityGroupsIdx ON ActivityGroups (tenant, activityId);
 	`,
+
+	// v2: adds support for external identifiers
+	`
+	CREATE TABLE ExternalIdentifiers (
+		tenant {{NVARCHAR}}(255) NOT NULL,
+		userId VARCHAR(36) NOT NULL,
+		value {{NTEXT}} NOT NULL,
+		context {{NTEXT}} NULL,
+		globallyUnique TINYINT NOT NULL,
+		FOREIGN KEY (tenant, userId) REFERENCES Users(tenant, id) ON DELETE CASCADE
+	);
+
+	CREATE INDEX ExternalIdentifiersIdx ON ExternalIdentifiers (tenant, userId);	
+	`,
+}
+
+var downgrades = [...]string{
+	// v1 - do nothing, we'll never downgrade below 1
+	`
+	`,
+
+	// v2: removes support for external identifiers
+	`
+	DROP TABLE ExternalIdentifiers;
+	`,
 }
 
 func currentSchemaVersion() int {
 	return len(migrations)
 }
 
+// Returns SQL statements to migrate the database from (version-1) to version
 func getSchema(version int) string {
 	return migrations[version-1]
+}
+
+// Returns SQL statements to downgrade from version to (version-1)
+func getDowngrade(version int) string {
+	return downgrades[version-1]
 }
 
 func driverSpecificInit(db *sqlx.DB) error {
@@ -261,22 +293,35 @@ func expandDriverSpecificTypes(driverName, schema string) string {
 	return expander(schema)
 }
 
-func (backend *SQLBackend) initSchema() error {
+// Makes sure we have a working connection to the database,
+// does driver specific initialization and retrieves
+// the version number of the current database schema in the database.
+// Returns error if anything fails or if the database's version is
+// higher than supported by this version of Windermere.
+func initDBConnection(db *sqlx.DB) (int, error) {
 	// Ensure we have a working connection since any error in
 	// getDBVersion is interpreted as an uninitialized database.
 	const waitTime = 5 * time.Second
-	for err := backend.db.Ping(); err != nil; err = backend.db.Ping() {
+	for err := db.Ping(); err != nil; err = db.Ping() {
 		log.Printf("Failed to connect to database: %v", err)
 		log.Printf("Will retry in %d seconds", waitTime/time.Second)
 		time.Sleep(waitTime)
 	}
-	if err := driverSpecificInit(backend.db); err != nil {
-		return err
+	if err := driverSpecificInit(db); err != nil {
+		return 0, err
 	}
-	version := getDBVersion(backend.db)
+	version := getDBVersion(db)
 
 	if version > currentSchemaVersion() {
-		return fmt.Errorf("database schema is newer than this version of Windermere. Please perform a database schema downgrade if you wish to continue with this version of Windermere.")
+		return 0, fmt.Errorf("database schema is newer than this version of Windermere. Please perform a database schema downgrade if you wish to continue with this version of Windermere.")
+	}
+	return version, nil
+}
+
+func (backend *SQLBackend) initSchema() error {
+	version, err := initDBConnection(backend.db)
+	if err != nil {
+		return err
 	}
 
 	tx, err := backend.db.Beginx()
@@ -297,6 +342,48 @@ func (backend *SQLBackend) initSchema() error {
 
 	// Set the current schema version
 	tx.NamedExec(`UPDATE windermere_meta SET version = :version`, map[string]interface{}{"version": currentSchemaVersion()})
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func DowngradeDBSchema(storageType, storageSource string, downgradeTo int) error {
+	db, err := openDB(storageType, storageSource)
+
+	if err != nil {
+		return fmt.Errorf("failed to open connection to database: %v", err)
+	}
+
+	version, err := initDBConnection(db)
+	if err != nil {
+		return err
+	}
+
+	if version <= downgradeTo {
+		return fmt.Errorf("current database version is %d, can't downgrade to %d", version, downgradeTo)
+	}
+
+	tx, err := db.Beginx()
+
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+
+	for i := version; i > downgradeTo; i-- {
+		_, err = tx.Exec(expandDriverSpecificTypes(db.DriverName(), getDowngrade(i)))
+		if err != nil {
+			return err
+		}
+	}
+
+	// Set the current schema version
+	tx.NamedExec(`UPDATE windermere_meta SET version = :version`, map[string]interface{}{"version": downgradeTo})
 
 	err = tx.Commit()
 	if err != nil {
