@@ -1,0 +1,7 @@
+package: ss12000v2
+generate:
+  client: true
+  models: true
+output-options:
+  skip-prune: true
+output: generated.go
