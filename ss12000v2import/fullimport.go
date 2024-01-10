@@ -40,13 +40,13 @@ import (
 // had are deleted if they don't exist in the new list of objects. In other words
 // it's like replacing the whole list of objects for that data type.
 type SS12000v1Backend interface {
-	ReplaceAllOrganisations(tenant string, orgs []*ss12000v1.Organisation) error
-	ReplaceAllStudentGroups(tenant string, groups []*ss12000v1.StudentGroup) error
-	ReplaceAllUsers(tenant string, users []*ss12000v1.User) error
-	ReplaceAllActivities(tenant string, activities []*ss12000v1.Activity) error
-	ReplaceAllEmployments(tenant string, employments []*ss12000v1.Employment) error
-	ReplaceAllSchoolUnits(tenant string, schoolUnits []*ss12000v1.SchoolUnit) error
-	ReplaceAllSchoolUnitGroups(tenant string, schoolUnitGroups []*ss12000v1.SchoolUnitGroup) error
+	ReplaceAllOrganisations(ctx context.Context, tenant string, orgs []*ss12000v1.Organisation) error
+	ReplaceAllStudentGroups(ctx context.Context, tenant string, groups []*ss12000v1.StudentGroup) error
+	ReplaceAllUsers(ctx context.Context, tenant string, users []*ss12000v1.User) error
+	ReplaceAllActivities(ctx context.Context, tenant string, activities []*ss12000v1.Activity) error
+	ReplaceAllEmployments(ctx context.Context, tenant string, employments []*ss12000v1.Employment) error
+	ReplaceAllSchoolUnits(ctx context.Context, tenant string, schoolUnits []*ss12000v1.SchoolUnit) error
+	ReplaceAllSchoolUnitGroups(ctx context.Context, tenant string, schoolUnitGroups []*ss12000v1.SchoolUnitGroup) error
 }
 
 // parsePaginatedResults is used to read a paginated response for a given SS12000v2 data type.
@@ -245,6 +245,7 @@ func getAllActivities(ctx context.Context, client ss12000v2.ClientInterface) ([]
 // Objects which we already had, but which are not available from the SS12000 API will be
 // removed from our backend.
 func FullImport(ctx context.Context, tenant string, client ss12000v2.ClientInterface, backend SS12000v1Backend) error {
+	log.Printf("Starting full SS12000 import for %s\n", tenant)
 	orgs, err := getAllOrganisationsOfType(ctx, client, ss12000v2.OrganisationTypeEnumHuvudman)
 
 	if err != nil {
@@ -256,7 +257,7 @@ func FullImport(ctx context.Context, tenant string, client ss12000v2.ClientInter
 		v1orgs[i] = organisationToV1(&org)
 	}
 
-	err = backend.ReplaceAllOrganisations(tenant, v1orgs)
+	err = backend.ReplaceAllOrganisations(ctx, tenant, v1orgs)
 
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to replace organisations: %s", err.Error())
@@ -279,7 +280,7 @@ func FullImport(ctx context.Context, tenant string, client ss12000v2.ClientInter
 		}
 	}
 
-	err = backend.ReplaceAllSchoolUnits(tenant, v1schoolUnits)
+	err = backend.ReplaceAllSchoolUnits(ctx, tenant, v1schoolUnits)
 
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to replace school units: %s", err.Error())
@@ -300,7 +301,7 @@ func FullImport(ctx context.Context, tenant string, client ss12000v2.ClientInter
 		}
 	}
 
-	err = backend.ReplaceAllUsers(tenant, v1users)
+	err = backend.ReplaceAllUsers(ctx, tenant, v1users)
 
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to replace users: %s", err.Error())
@@ -323,7 +324,7 @@ func FullImport(ctx context.Context, tenant string, client ss12000v2.ClientInter
 
 	}
 
-	err = backend.ReplaceAllStudentGroups(tenant, v1studentGroups)
+	err = backend.ReplaceAllStudentGroups(ctx, tenant, v1studentGroups)
 
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to replace student groups: %s", err.Error())
@@ -344,7 +345,7 @@ func FullImport(ctx context.Context, tenant string, client ss12000v2.ClientInter
 		}
 	}
 
-	err = backend.ReplaceAllEmployments(tenant, v1employments)
+	err = backend.ReplaceAllEmployments(ctx, tenant, v1employments)
 
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to replace employments: %s", err.Error())
@@ -361,11 +362,11 @@ func FullImport(ctx context.Context, tenant string, client ss12000v2.ClientInter
 		v1activities = append(v1activities, activityToV1(&activity))
 	}
 
-	err = backend.ReplaceAllActivities(tenant, v1activities)
+	err = backend.ReplaceAllActivities(ctx, tenant, v1activities)
 
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to replace activities: %s", err.Error())
 	}
-
+	log.Printf("Full SS12000 import done for %s\n", tenant)
 	return nil
 }

@@ -19,6 +19,8 @@
 
 package scimserverlite
 
+import "context"
+
 // SCIMErrorType is a standard type of error the backend can return
 type SCIMErrorType int
 
@@ -144,7 +146,7 @@ type Backend interface {
 	Create(tenant, resourceType, resource string) (string, error)
 	Update(tenant, resourceType, resourceID, resource string) (string, error)
 	Delete(tenant, resourceType, resourceID string) error
-	Bulk(tenant string, operations []BulkOperation) ([]BulkOperationResult, error)
+	Bulk(ctx context.Context, tenant string, operations []BulkOperation) ([]BulkOperationResult, error)
 	Clear(tenant string) error
 	GetResources(tenant, resourceType string) (map[string]string, error)
 	GetResource(tenant, resourceType string, id string) (string, error)

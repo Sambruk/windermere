@@ -20,6 +20,7 @@
 package scimserverlite
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -163,7 +164,7 @@ func (backend *InMemoryBackend) Delete(tenant, resourceType, resourceID string) 
 	return nil
 }
 
-func (backend *InMemoryBackend) Bulk(tenant string, operations []BulkOperation) ([]BulkOperationResult, error) {
+func (backend *InMemoryBackend) Bulk(ctx context.Context, tenant string, operations []BulkOperation) ([]BulkOperationResult, error) {
 	result := make([]BulkOperationResult, 0)
 	for _, op := range operations {
 		var err error

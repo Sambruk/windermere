@@ -20,6 +20,7 @@
 package windermere
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -30,6 +31,7 @@ import (
 	"github.com/Sambruk/windermere/scimserverlite"
 	scim "github.com/Sambruk/windermere/scimserverlite"
 	"github.com/Sambruk/windermere/ss12000v1"
+	"github.com/Sambruk/windermere/util"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -652,7 +654,7 @@ func (backend *SQLBackend) Delete(tenant, resourceType, resourceID string) error
 	return tx.Commit()
 }
 
-func (backend *SQLBackend) Bulk(tenant string, operations []scimserverlite.BulkOperation) ([]scimserverlite.BulkOperationResult, error) {
+func (backend *SQLBackend) Bulk(ctx context.Context, tenant string, operations []scimserverlite.BulkOperation) ([]scimserverlite.BulkOperationResult, error) {
 	// TODO: Add protection against too many failures?
 	//       Since failures means new transactions we don't want to do too many if there
 	//       are thousands of bad bulk operations.
@@ -666,6 +668,10 @@ func (backend *SQLBackend) Bulk(tenant string, operations []scimserverlite.BulkO
 	//       dealing with the objects that parsed correctly. If we do that we should make sure
 	//       to still return the results in the same order as the bulk operations.
 	const TransactionMaxSize = 50
+
+	if ok, msg := util.IsDone(ctx); ok {
+		return nil, fmt.Errorf("Bulk operation terminated prematurely: %s", msg)
+	}
 
 	bulkSize := len(operations)
 	if bulkSize == 0 {
@@ -686,11 +692,11 @@ func (backend *SQLBackend) Bulk(tenant string, operations []scimserverlite.BulkO
 		return []scimserverlite.BulkOperationResult{scimserverlite.NewBulkOperationResult(op, err)}, nil
 	} else if bulkSize > TransactionMaxSize {
 		mid := bulkSize / 2
-		listA, err := backend.Bulk(tenant, operations[0:mid])
+		listA, err := backend.Bulk(ctx, tenant, operations[0:mid])
 		if err != nil {
 			return nil, err
 		}
-		listB, err := backend.Bulk(tenant, operations[mid:])
+		listB, err := backend.Bulk(ctx, tenant, operations[mid:])
 		if err != nil {
 			return nil, err
 		}
@@ -735,7 +741,7 @@ func (backend *SQLBackend) Bulk(tenant string, operations []scimserverlite.BulkO
 			// continue with the rest of the operations in a new transaction.
 			if i == 0 {
 				resultList = append(resultList, scim.NewBulkOperationResult(op, err))
-				rest, err := backend.Bulk(tenant, operations[1:])
+				rest, err := backend.Bulk(ctx, tenant, operations[1:])
 				if err != nil {
 					return nil, err
 				}
@@ -745,15 +751,15 @@ func (backend *SQLBackend) Bulk(tenant string, operations []scimserverlite.BulkO
 
 			// Otherwise we re-run the operations before the failure in a separate
 			// transaction, retry this one separately, and the rest separately.
-			listA, err := backend.Bulk(tenant, operations[0:i])
+			listA, err := backend.Bulk(ctx, tenant, operations[0:i])
 			if err != nil {
 				return nil, err
 			}
-			listB, err := backend.Bulk(tenant, operations[i:i+1])
+			listB, err := backend.Bulk(ctx, tenant, operations[i:i+1])
 			if err != nil {
 				return nil, err
 			}
-			listC, err := backend.Bulk(tenant, operations[i+1:])
+			listC, err := backend.Bulk(ctx, tenant, operations[i+1:])
 			if err != nil {
 				return nil, err
 			}

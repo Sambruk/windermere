@@ -1,6 +1,7 @@
 package windermere
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -18,7 +19,7 @@ func NewV2toV1ImportBackendAdapter(b scimserverlite.Backend) *V2toV1ImportBacken
 	}
 }
 
-func ReplaceAllT[T ss12000v1.Object](adapter *V2toV1ImportBackendAdapter, tenant string, resourceType string, objs []T) error {
+func ReplaceAllT[T ss12000v1.Object](ctx context.Context, adapter *V2toV1ImportBackendAdapter, tenant string, resourceType string, objs []T) error {
 	existingResources, err := adapter.backend.GetResources(tenant, resourceType)
 
 	if err != nil {
@@ -51,7 +52,7 @@ func ReplaceAllT[T ss12000v1.Object](adapter *V2toV1ImportBackendAdapter, tenant
 		}
 	}
 
-	results, err := adapter.backend.Bulk(tenant, operations)
+	results, err := adapter.backend.Bulk(ctx, tenant, operations)
 
 	if err != nil {
 		return fmt.Errorf("Failed to perform bulk import of %s: %s", resourceType, err.Error())
@@ -66,30 +67,30 @@ func ReplaceAllT[T ss12000v1.Object](adapter *V2toV1ImportBackendAdapter, tenant
 	return nil
 }
 
-func (adapter *V2toV1ImportBackendAdapter) ReplaceAllOrganisations(tenant string, orgs []*ss12000v1.Organisation) error {
-	return ReplaceAllT(adapter, tenant, "Organisations", orgs)
+func (adapter *V2toV1ImportBackendAdapter) ReplaceAllOrganisations(ctx context.Context, tenant string, orgs []*ss12000v1.Organisation) error {
+	return ReplaceAllT(ctx, adapter, tenant, "Organisations", orgs)
 }
 
-func (adapter *V2toV1ImportBackendAdapter) ReplaceAllStudentGroups(tenant string, groups []*ss12000v1.StudentGroup) error {
-	return ReplaceAllT(adapter, tenant, "StudentGroups", groups)
+func (adapter *V2toV1ImportBackendAdapter) ReplaceAllStudentGroups(ctx context.Context, tenant string, groups []*ss12000v1.StudentGroup) error {
+	return ReplaceAllT(ctx, adapter, tenant, "StudentGroups", groups)
 }
 
-func (adapter *V2toV1ImportBackendAdapter) ReplaceAllUsers(tenant string, users []*ss12000v1.User) error {
-	return ReplaceAllT(adapter, tenant, "Users", users)
+func (adapter *V2toV1ImportBackendAdapter) ReplaceAllUsers(ctx context.Context, tenant string, users []*ss12000v1.User) error {
+	return ReplaceAllT(ctx, adapter, tenant, "Users", users)
 }
 
-func (adapter *V2toV1ImportBackendAdapter) ReplaceAllActivities(tenant string, activities []*ss12000v1.Activity) error {
-	return ReplaceAllT(adapter, tenant, "Activities", activities)
+func (adapter *V2toV1ImportBackendAdapter) ReplaceAllActivities(ctx context.Context, tenant string, activities []*ss12000v1.Activity) error {
+	return ReplaceAllT(ctx, adapter, tenant, "Activities", activities)
 }
 
-func (adapter *V2toV1ImportBackendAdapter) ReplaceAllEmployments(tenant string, employments []*ss12000v1.Employment) error {
-	return ReplaceAllT(adapter, tenant, "Employments", employments)
+func (adapter *V2toV1ImportBackendAdapter) ReplaceAllEmployments(ctx context.Context, tenant string, employments []*ss12000v1.Employment) error {
+	return ReplaceAllT(ctx, adapter, tenant, "Employments", employments)
 }
 
-func (adapter *V2toV1ImportBackendAdapter) ReplaceAllSchoolUnits(tenant string, schoolUnits []*ss12000v1.SchoolUnit) error {
-	return ReplaceAllT(adapter, tenant, "SchoolUnits", schoolUnits)
+func (adapter *V2toV1ImportBackendAdapter) ReplaceAllSchoolUnits(ctx context.Context, tenant string, schoolUnits []*ss12000v1.SchoolUnit) error {
+	return ReplaceAllT(ctx, adapter, tenant, "SchoolUnits", schoolUnits)
 }
 
-func (adapter *V2toV1ImportBackendAdapter) ReplaceAllSchoolUnitGroups(tenant string, schoolUnitGroups []*ss12000v1.SchoolUnitGroup) error {
-	return ReplaceAllT(adapter, tenant, "SchoolUnitGroups", schoolUnitGroups)
+func (adapter *V2toV1ImportBackendAdapter) ReplaceAllSchoolUnitGroups(ctx context.Context, tenant string, schoolUnitGroups []*ss12000v1.SchoolUnitGroup) error {
+	return ReplaceAllT(ctx, adapter, tenant, "SchoolUnitGroups", schoolUnitGroups)
 }
