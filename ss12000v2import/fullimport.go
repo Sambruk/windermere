@@ -244,8 +244,8 @@ func getAllActivities(ctx context.Context, client ss12000v2.ClientInterface) ([]
 // All objects which we can access, and which are relevant to Windermere, will be imported.
 // Objects which we already had, but which are not available from the SS12000 API will be
 // removed from our backend.
-func FullImport(ctx context.Context, tenant string, client ss12000v2.ClientInterface, backend SS12000v1Backend) error {
-	log.Printf("Starting full SS12000 import for %s\n", tenant)
+func FullImport(ctx context.Context, logger *log.Logger, tenant string, client ss12000v2.ClientInterface, backend SS12000v1Backend) error {
+	logger.Printf("Starting full SS12000 import for %s\n", tenant)
 	orgs, err := getAllOrganisationsOfType(ctx, client, ss12000v2.OrganisationTypeEnumHuvudman)
 
 	if err != nil {
@@ -367,6 +367,6 @@ func FullImport(ctx context.Context, tenant string, client ss12000v2.ClientInter
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to replace activities: %s", err.Error())
 	}
-	log.Printf("Full SS12000 import done for %s\n", tenant)
+	logger.Printf("Full SS12000 import done for %s\n", tenant)
 	return nil
 }
