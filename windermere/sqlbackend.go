@@ -667,6 +667,8 @@ func (backend *SQLBackend) Bulk(ctx context.Context, tenant string, operations [
 	//       we should probably pre-parse all objects and handle parse errors separately before
 	//       dealing with the objects that parsed correctly. If we do that we should make sure
 	//       to still return the results in the same order as the bulk operations.
+	//
+	// TODO: Make sure we return partial results even if there's an error which aborts the rest of the process
 	const TransactionMaxSize = 50
 
 	if ok, msg := util.IsDone(ctx); ok {

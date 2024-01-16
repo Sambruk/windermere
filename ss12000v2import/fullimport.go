@@ -26,28 +26,12 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/Sambruk/windermere/ss12000v1"
 	"github.com/Sambruk/windermere/ss12000v2"
 	"github.com/google/uuid"
 )
-
-// SS12000v1Backend is the interface which the SS12000v2 import writes to.
-// This will be implemented by the Windermere SCIM backend so that we can
-// write to the database (or in-memory backend for test purposes).
-//
-// The ReplaceAll* functions will ensure that objects which the backend already
-// had are deleted if they don't exist in the new list of objects. In other words
-// it's like replacing the whole list of objects for that data type.
-type SS12000v1Backend interface {
-	ReplaceAllOrganisations(ctx context.Context, tenant string, orgs []*ss12000v1.Organisation) error
-	ReplaceAllStudentGroups(ctx context.Context, tenant string, groups []*ss12000v1.StudentGroup) error
-	ReplaceAllUsers(ctx context.Context, tenant string, users []*ss12000v1.User) error
-	ReplaceAllActivities(ctx context.Context, tenant string, activities []*ss12000v1.Activity) error
-	ReplaceAllEmployments(ctx context.Context, tenant string, employments []*ss12000v1.Employment) error
-	ReplaceAllSchoolUnits(ctx context.Context, tenant string, schoolUnits []*ss12000v1.SchoolUnit) error
-	ReplaceAllSchoolUnitGroups(ctx context.Context, tenant string, schoolUnitGroups []*ss12000v1.SchoolUnitGroup) error
-}
 
 // parsePaginatedResults is used to read a paginated response for a given SS12000v2 data type.
 // It will return the array of objects included in the returned page and the page token which
@@ -79,11 +63,19 @@ const MaxDutyPageSize = 100
 const MaxActivityPageSize = 50
 
 // Using an SS12000v2 client, this function gets all Organisation objects of a given OrganisationType
-func getAllOrganisationsOfType(ctx context.Context, client ss12000v2.ClientInterface, organisationType ss12000v2.OrganisationTypeEnum) ([]ss12000v2.Organisation, error) {
+func getAllOrganisationsOfType(
+	ctx context.Context,
+	client ss12000v2.ClientInterface,
+	organisationType ss12000v2.OrganisationTypeEnum,
+	createdAfter *time.Time,
+	modifiedAfter *time.Time) ([]ss12000v2.Organisation, error) {
+
 	var orgs = make([]ss12000v2.Organisation, 0)
 	var params ss12000v2.GetOrganisationsParams
 	orgType := []ss12000v2.OrganisationTypeEnum{organisationType}
 	params.Type = &orgType
+	params.MetaCreatedAfter = createdAfter
+	params.MetaModifiedAfter = modifiedAfter
 	limit := MaxOrganisationPageSize
 	params.Limit = &limit
 
@@ -113,9 +105,15 @@ func getAllOrganisationsOfType(ctx context.Context, client ss12000v2.ClientInter
 }
 
 // Using an SS12000v2 client, this function gets all Person objects
-func getAllPersons(ctx context.Context, client ss12000v2.ClientInterface) ([]ss12000v2.Person, error) {
+func getAllPersons(
+	ctx context.Context,
+	client ss12000v2.ClientInterface,
+	createdAfter *time.Time,
+	modifiedAfter *time.Time) ([]ss12000v2.Person, error) {
 	var persons = make([]ss12000v2.Person, 0)
 	var params ss12000v2.GetPersonsParams
+	params.MetaCreatedAfter = createdAfter
+	params.MetaModifiedAfter = modifiedAfter
 	limit := MaxPersonPageSize
 	params.Limit = &limit
 
@@ -145,9 +143,15 @@ func getAllPersons(ctx context.Context, client ss12000v2.ClientInterface) ([]ss1
 }
 
 // Using an SS12000v2 client, this function gets all Group objects
-func getAllGroups(ctx context.Context, client ss12000v2.ClientInterface) ([]ss12000v2.Group, error) {
+func getAllGroups(
+	ctx context.Context,
+	client ss12000v2.ClientInterface,
+	createdAfter *time.Time,
+	modifiedAfter *time.Time) ([]ss12000v2.Group, error) {
 	var groups = make([]ss12000v2.Group, 0)
 	var params ss12000v2.GetGroupsParams
+	params.MetaCreatedAfter = createdAfter
+	params.MetaModifiedAfter = modifiedAfter
 	limit := MaxGroupPageSize
 	params.Limit = &limit
 
@@ -177,9 +181,15 @@ func getAllGroups(ctx context.Context, client ss12000v2.ClientInterface) ([]ss12
 }
 
 // Using an SS12000v2 client, this function gets all Duty objects
-func getAllDuties(ctx context.Context, client ss12000v2.ClientInterface) ([]ss12000v2.Duty, error) {
+func getAllDuties(
+	ctx context.Context,
+	client ss12000v2.ClientInterface,
+	createdAfter *time.Time,
+	modifiedAfter *time.Time) ([]ss12000v2.Duty, error) {
 	var duties = make([]ss12000v2.Duty, 0)
 	var params ss12000v2.GetDutiesParams
+	params.MetaCreatedAfter = createdAfter
+	params.MetaModifiedAfter = modifiedAfter
 	limit := MaxDutyPageSize
 	params.Limit = &limit
 
@@ -209,9 +219,14 @@ func getAllDuties(ctx context.Context, client ss12000v2.ClientInterface) ([]ss12
 }
 
 // Using an SS12000v2 client, this function gets all Activity objects
-func getAllActivities(ctx context.Context, client ss12000v2.ClientInterface) ([]ss12000v2.Activity, error) {
+func getAllActivities(ctx context.Context,
+	client ss12000v2.ClientInterface,
+	createdAfter *time.Time,
+	modifiedAfter *time.Time) ([]ss12000v2.Activity, error) {
 	var activities = make([]ss12000v2.Activity, 0)
 	var params ss12000v2.GetActivitiesParams
+	params.MetaCreatedAfter = createdAfter
+	params.MetaModifiedAfter = modifiedAfter
 	limit := MaxActivityPageSize
 	params.Limit = &limit
 
@@ -244,9 +259,10 @@ func getAllActivities(ctx context.Context, client ss12000v2.ClientInterface) ([]
 // All objects which we can access, and which are relevant to Windermere, will be imported.
 // Objects which we already had, but which are not available from the SS12000 API will be
 // removed from our backend.
-func FullImport(ctx context.Context, logger *log.Logger, tenant string, client ss12000v2.ClientInterface, backend SS12000v1Backend) error {
+func FullImport(ctx context.Context, logger *log.Logger, tenant string, client ss12000v2.ClientInterface, backend SS12000v1Backend, importHistory ImportHistory) error {
 	logger.Printf("Starting full SS12000 import for %s\n", tenant)
-	orgs, err := getAllOrganisationsOfType(ctx, client, ss12000v2.OrganisationTypeEnumHuvudman)
+	timeOfFullImportStart := time.Now()
+	orgs, err := getAllOrganisationsOfType(ctx, client, ss12000v2.OrganisationTypeEnumHuvudman, nil, nil)
 
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to get principal organisations: %s", err.Error())
@@ -257,13 +273,16 @@ func FullImport(ctx context.Context, logger *log.Logger, tenant string, client s
 		v1orgs[i] = organisationToV1(&org)
 	}
 
-	err = backend.ReplaceAllOrganisations(ctx, tenant, v1orgs)
+	_, _, err = backend.ReplaceOrganisations(ctx, tenant, v1orgs, true)
 
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to replace organisations: %s", err.Error())
+	} else {
+		created, modified := organisationTimestamps(orgs)
+		importHistory.RecordMostRecent(created, modified, "PrincipalOrganisations")
 	}
 
-	orgs, err = getAllOrganisationsOfType(ctx, client, ss12000v2.OrganisationTypeEnumSkolenhet)
+	orgs, err = getAllOrganisationsOfType(ctx, client, ss12000v2.OrganisationTypeEnumSkolenhet, nil, nil)
 
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to get school units: %s", err.Error())
@@ -280,13 +299,16 @@ func FullImport(ctx context.Context, logger *log.Logger, tenant string, client s
 		}
 	}
 
-	err = backend.ReplaceAllSchoolUnits(ctx, tenant, v1schoolUnits)
+	_, _, err = backend.ReplaceSchoolUnits(ctx, tenant, v1schoolUnits, true)
 
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to replace school units: %s", err.Error())
+	} else {
+		created, modified := organisationTimestamps(orgs)
+		importHistory.RecordMostRecent(created, modified, "SchoolUnitOrganisations")
 	}
 
-	persons, err := getAllPersons(ctx, client)
+	persons, err := getAllPersons(ctx, client, nil, nil)
 
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to get persons: %s", err.Error())
@@ -301,13 +323,16 @@ func FullImport(ctx context.Context, logger *log.Logger, tenant string, client s
 		}
 	}
 
-	err = backend.ReplaceAllUsers(ctx, tenant, v1users)
+	_, _, err = backend.ReplaceUsers(ctx, tenant, v1users, true)
 
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to replace users: %s", err.Error())
+	} else {
+		created, modified := personTimestamps(persons)
+		importHistory.RecordMostRecent(created, modified, "Persons")
 	}
 
-	groups, err := getAllGroups(ctx, client)
+	groups, err := getAllGroups(ctx, client, nil, nil)
 
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to get groups: %s", err.Error())
@@ -324,13 +349,16 @@ func FullImport(ctx context.Context, logger *log.Logger, tenant string, client s
 
 	}
 
-	err = backend.ReplaceAllStudentGroups(ctx, tenant, v1studentGroups)
+	_, _, err = backend.ReplaceStudentGroups(ctx, tenant, v1studentGroups, true)
 
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to replace student groups: %s", err.Error())
+	} else {
+		created, modified := groupTimestamps(groups)
+		importHistory.RecordMostRecent(created, modified, "Groups")
 	}
 
-	duties, err := getAllDuties(ctx, client)
+	duties, err := getAllDuties(ctx, client, nil, nil)
 
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to get duties: %s", err.Error())
@@ -345,13 +373,16 @@ func FullImport(ctx context.Context, logger *log.Logger, tenant string, client s
 		}
 	}
 
-	err = backend.ReplaceAllEmployments(ctx, tenant, v1employments)
+	_, _, err = backend.ReplaceEmployments(ctx, tenant, v1employments, true)
 
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to replace employments: %s", err.Error())
+	} else {
+		created, modified := dutyTimestamps(duties)
+		importHistory.RecordMostRecent(created, modified, "Duties")
 	}
 
-	activities, err := getAllActivities(ctx, client)
+	activities, err := getAllActivities(ctx, client, nil, nil)
 
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to get activities: %s", err.Error())
@@ -362,11 +393,18 @@ func FullImport(ctx context.Context, logger *log.Logger, tenant string, client s
 		v1activities = append(v1activities, activityToV1(&activity))
 	}
 
-	err = backend.ReplaceAllActivities(ctx, tenant, v1activities)
+	_, _, err = backend.ReplaceActivities(ctx, tenant, v1activities, true)
 
 	if err != nil {
 		return fmt.Errorf("FullImport: failed to replace activities: %s", err.Error())
+	} else {
+		created, modified := activityTimestamps(activities)
+		importHistory.RecordMostRecent(created, modified, "Activities")
 	}
+
+	// We haven't done a deletedEntities call yet, but the first time we do an
+	// incremental import we shouldn't get deleted entities from the beginning of time...
+	importHistory.SetTimeOfLastDeletedEntitiesCall(timeOfFullImportStart)
 	logger.Printf("Full SS12000 import done for %s\n", tenant)
 	return nil
 }
