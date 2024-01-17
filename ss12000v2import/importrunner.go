@@ -25,15 +25,15 @@ type ImportRunner struct {
 	// (the other members should be thread safe or only accessed by the ImportRunner which is single threaded)
 	lock sync.Mutex
 
-	backend       SS12000v1Backend
-	client        ss12000v2.ClientInterface
-	importConfig  ImportConfig
-	importHistory ImportHistory
+	config ImportConfig
 }
 
 // The ImportConfig describes how the import should be done for a tenant.
 type ImportConfig struct {
 	Tenant                     string
+	Backend                    SS12000v1Backend
+	Client                     ss12000v2.ClientInterface
+	History                    ImportHistory
 	FullImportFrequency        time.Duration
 	FullImportRetryWait        time.Duration
 	IncrementalImportFrequency time.Duration
@@ -41,13 +41,10 @@ type ImportConfig struct {
 }
 
 // Creates and starts a new ImportRunner
-func NewImportRunner(b SS12000v1Backend, c ss12000v2.ClientInterface, conf ImportConfig, hist ImportHistory) *ImportRunner {
+func NewImportRunner(conf ImportConfig) *ImportRunner {
 	ir := &ImportRunner{
-		quit:          make(chan int),
-		backend:       b,
-		client:        c,
-		importConfig:  conf,
-		importHistory: hist,
+		quit:   make(chan int),
+		config: conf,
 	}
 	go importRunner(ir)
 	return ir
@@ -76,46 +73,46 @@ func (ir *ImportRunner) getContextCanceller() context.CancelFunc {
 	return ir.contextCanceller
 }
 
-func timeForFullImport(config ImportConfig, history ImportHistory) bool {
-	if time.Now().Sub(history.GetTimeOfLastStartedFullImport()) < config.FullImportRetryWait {
+func timeForFullImport(config ImportConfig) bool {
+	if time.Now().Sub(config.History.GetTimeOfLastStartedFullImport()) < config.FullImportRetryWait {
 		return false
 	} else {
-		return time.Now().Sub(history.GetTimeOfLastCompletedFullImport()) > config.FullImportFrequency
+		return time.Now().Sub(config.History.GetTimeOfLastCompletedFullImport()) > config.FullImportFrequency
 	}
 }
 
-func timeForIncrementalImport(config ImportConfig, history ImportHistory) bool {
-	if timeForFullImport(config, history) {
+func timeForIncrementalImport(config ImportConfig) bool {
+	if timeForFullImport(config) {
 		return false
-	} else if time.Now().Sub(history.GetTimeOfLastStartedIncrementalImport()) < config.IncrementalImportRetryWait {
+	} else if time.Now().Sub(config.History.GetTimeOfLastStartedIncrementalImport()) < config.IncrementalImportRetryWait {
 		return false
 	} else {
-		return time.Now().Sub(history.GetTimeOfLastCompletedIncrementalImport()) > config.IncrementalImportFrequency
+		return time.Now().Sub(config.History.GetTimeOfLastCompletedIncrementalImport()) > config.IncrementalImportFrequency
 	}
 }
 
 func (ir *ImportRunner) importTick(ctx context.Context, logger *log.Logger) {
 	var err error
-	if timeForFullImport(ir.importConfig, ir.importHistory) {
-		ir.importHistory.SetTimeOfLastStartedFullImport(time.Now())
-		err = FullImport(ctx, logger, ir.importConfig.Tenant, ir.client, ir.backend, ir.importHistory)
+	if timeForFullImport(ir.config) {
+		ir.config.History.SetTimeOfLastStartedFullImport(time.Now())
+		err = FullImport(ctx, logger, ir.config.Tenant, ir.config.Client, ir.config.Backend, ir.config.History)
 		if err == nil {
-			ir.importHistory.SetTimeOfLastCompletedFullImport(time.Now())
+			ir.config.History.SetTimeOfLastCompletedFullImport(time.Now())
 		}
-	} else if timeForIncrementalImport(ir.importConfig, ir.importHistory) {
-		ir.importHistory.SetTimeOfLastStartedIncrementalImport(time.Now())
-		err = IncrementalImport(ctx, logger, ir.importConfig.Tenant, ir.client, ir.backend, ir.importHistory)
+	} else if timeForIncrementalImport(ir.config) {
+		ir.config.History.SetTimeOfLastStartedIncrementalImport(time.Now())
+		err = IncrementalImport(ctx, logger, ir.config.Tenant, ir.config.Client, ir.config.Backend, ir.config.History)
 		if err == nil {
-			ir.importHistory.SetTimeOfLastCompletedIncrementalImport(time.Now())
+			ir.config.History.SetTimeOfLastCompletedIncrementalImport(time.Now())
 		}
 	}
 	if err != nil {
-		logger.Printf("Failed to import for %s: %s", ir.importConfig.Tenant, err.Error())
+		logger.Printf("Failed to import for %s: %s", ir.config.Tenant, err.Error())
 	}
 }
 
 func importRunner(ir *ImportRunner) {
-	logger := log.New(os.Stderr, fmt.Sprintf("SS12000 Import:%s: ", ir.importConfig.Tenant), log.LstdFlags|log.Lmsgprefix)
+	logger := log.New(os.Stderr, fmt.Sprintf("SS12000 Import:%s: ", ir.config.Tenant), log.LstdFlags|log.Lmsgprefix)
 
 	retry := time.NewTicker(5 * time.Second)
 	defer retry.Stop()
