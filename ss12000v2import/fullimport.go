@@ -49,7 +49,6 @@ func parsePaginatedResults[T any](r *http.Response) ([]T, *string, error) {
 	err = json.Unmarshal(b, &parsedResponse)
 
 	if err != nil {
-		log.Printf("%s\n", string(b))
 		return nil, nil, fmt.Errorf("failed to parse paginated response: %s", err.Error())
 	}
 
