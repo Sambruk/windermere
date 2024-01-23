@@ -25,11 +25,12 @@ type ImportRunner struct {
 	// (the other members should be thread safe or only accessed by the ImportRunner which is single threaded)
 	lock sync.Mutex
 
-	config ImportConfig
+	config RunnerConfig
 }
 
-// The ImportConfig describes how the import should be done for a tenant.
-type ImportConfig struct {
+// The RunnerConfig describes how the import should be done for a tenant.
+// It's all the information the ImportRunner needs.
+type RunnerConfig struct {
 	Tenant                     string
 	Backend                    SS12000v1Backend
 	Client                     ss12000v2.ClientInterface
@@ -41,7 +42,7 @@ type ImportConfig struct {
 }
 
 // Creates and starts a new ImportRunner
-func NewImportRunner(conf ImportConfig) *ImportRunner {
+func NewImportRunner(conf RunnerConfig) *ImportRunner {
 	ir := &ImportRunner{
 		quit:   make(chan int),
 		config: conf,
@@ -73,21 +74,25 @@ func (ir *ImportRunner) getContextCanceller() context.CancelFunc {
 	return ir.contextCanceller
 }
 
-func timeForFullImport(config ImportConfig) bool {
-	if time.Now().Sub(config.History.GetTimeOfLastStartedFullImport()) < config.FullImportRetryWait {
+func timeForFullImport(config RunnerConfig) bool {
+	lastStartedFull := config.History.GetTimeOfLastStartedFullImport()
+	lastCompletedFull := config.History.GetTimeOfLastCompletedFullImport()
+	if lastCompletedFull.Before(lastStartedFull) && time.Now().Sub(lastStartedFull) < config.FullImportRetryWait {
 		return false
 	} else {
-		return time.Now().Sub(config.History.GetTimeOfLastCompletedFullImport()) > config.FullImportFrequency
+		return time.Now().Sub(lastCompletedFull) > config.FullImportFrequency
 	}
 }
 
-func timeForIncrementalImport(config ImportConfig) bool {
+func timeForIncrementalImport(config RunnerConfig) bool {
+	lastStartedIncremental := config.History.GetTimeOfLastStartedIncrementalImport()
+	lastCompletedIncremental := config.History.GetTimeOfLastCompletedIncrementalImport()
 	if timeForFullImport(config) {
 		return false
-	} else if time.Now().Sub(config.History.GetTimeOfLastStartedIncrementalImport()) < config.IncrementalImportRetryWait {
+	} else if lastCompletedIncremental.Before(lastStartedIncremental) && time.Now().Sub(lastStartedIncremental) < config.IncrementalImportRetryWait {
 		return false
 	} else {
-		return time.Now().Sub(config.History.GetTimeOfLastCompletedIncrementalImport()) > config.IncrementalImportFrequency
+		return time.Now().Sub(lastCompletedIncremental) > config.IncrementalImportFrequency
 	}
 }
 

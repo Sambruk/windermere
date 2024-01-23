@@ -1,0 +1,41 @@
+#imports-list {
+    background-color: lightgrey;
+}
+
+.imports-list-entry {
+    background-color:cadetblue;
+    margin-top: 1em;
+    margin-bottom: 1em;
+    padding: 1em;
+}
+
+.edit-import-div {
+    display: inline;
+}
+
+.edit-import-form {
+    display: inline;
+}
+
+.delete-import-div {
+    display: inline;
+}
+
+.delete-import-form {
+    display: inline;
+}
+
+.edit-import-form-propery {
+    margin-top: 1em;
+    margin-bottom: 1em;
+}
+
+.edit-import-property-heading {
+    font-weight: bold;
+    margin-bottom: 1em;
+}
+
+.edit-import-help-text {
+    width: 50%;
+    font-style: italic;
+}

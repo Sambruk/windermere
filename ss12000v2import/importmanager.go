@@ -5,14 +5,14 @@ package ss12000v2import
 // and deleting runners and controlled shutdown.
 type ImportManager struct {
 	quit   chan int
-	add    chan ImportConfig
+	add    chan RunnerConfig
 	delete chan string
 }
 
 func NewImportManager() *ImportManager {
 	var im ImportManager
 	im.quit = make(chan int)
-	im.add = make(chan ImportConfig)
+	im.add = make(chan RunnerConfig)
 	im.delete = make(chan string)
 	go importManager(&im)
 	return &im
@@ -24,7 +24,7 @@ func (im *ImportManager) Quit() {
 	<-im.quit
 }
 
-func (im *ImportManager) AddRunner(conf ImportConfig) {
+func (im *ImportManager) AddRunner(conf RunnerConfig) {
 	im.add <- conf
 }
 

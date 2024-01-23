@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" type="text/css" href="css/www/css/ss12000v2_import_config/style.css">
+  </head>
+  <body>
+    <div>
+        <form action="edit" method="post" id="edit-import-form">
+            {{ $.csrfField }}
+            <div class="edit-import-form-propery" id="edit-import-form-tenant-div">
+                <div class="edit-import-property-heading">Tenant</div>
+            {{if .add}}
+                <div class="edit-import-help-text">Identifier for this import. Will be the key for all data from this import in the database. Should be unique, not just within the imports but within all tenants (so including EGIL and Skolsynk tenants). To avoid collisions with tenant ids from Federated TLS (e.g. Moa), the tenant should not be in the form of a URI.</div>
+                <input type="text" name="tenant" id="tenant-input" value="{{ .tenant }}" required/>
+            {{else}}
+                <p>{{ .tenant }}</p>
+                <input type="hidden" name="tenant" id="tenant-input" value="{{ .tenant }}"/>
+            {{end}}
+            </div>
+            <div class="edit-import-form-propery"  id="edit-import-form-url-div">
+                <div class="edit-import-property-heading">URL</div>
+                <div class="edit-import-help-text">Address to the SS12000 (v2) API to read from.</div>
+                <input type="url" name="url" id="url-input" required value="{{ .url }}"/>
+            </div>
+            <div class="edit-import-form-propery" id="edit-import-form-client-id-div">
+                <div class="edit-import-property-heading">Client ID</div>
+                <div class="edit-import-help-text">Identifier used to authenticate against the API.</div>
+                <input type="text" name="client-id" id="client-id-input" required value="{{ .client_id }}"/>
+            </div>
+            <div class="edit-import-form-propery" id="edit-import-form-client-secret-div">
+                <div class="edit-import-property-heading">Client secret</div>
+                <div class="edit-import-help-text">Secret used to authenticate against the API.</div>
+                <input type="text" name="client-secret" id="client-secret-input" required value="{{ .client_secret }}"/>
+            </div>
+            <div class="edit-import-form-propery" id="edit-import-form-full-import-frequency-div">
+                <div class="edit-import-property-heading">Full import frequency (seconds)</div>
+                <div class="edit-import-help-text">Specifies how often a full import should be done.</div>
+                <input type="number" name="full-import-frequency" step="1" min="60" required value="{{ .full_import_frequency }}"/>
+            </div>
+            <div class="edit-import-form-propery" id="edit-import-form-full-import-retry-wait-div">
+                <div class="edit-import-property-heading">Full import retry wait (seconds)</div>
+                <div class="edit-import-help-text">If a full import fails (for example because the API is inaccessible), how long should we wait before we try again?</div>                
+                <input type="number" name="full-import-retry-wait" step="1" min="10" required value="{{ .full_import_retry_wait }}"/>
+            </div>
+            <div class="edit-import-form-propery" id="edit-import-form-incremental-import-frequency-div">
+                <div class="edit-import-property-heading">Incremental import frequency (seconds)</div>
+                <div class="edit-import-help-text">Specifies how often an incremental import should be done.</div>
+                <input type="number" name="incremental-import-frequency" step="1" min="30" required value="{{ .incremental_import_frequency }}"/>
+            </div>
+            <div class="edit-import-form-propery" id="edit-import-form-incremental-import-retry-wait-div">
+                <div class="edit-import-property-heading">Incremental import retry wait (seconds)</div>
+                <div class="edit-import-help-text">If an incremental import fails (for example because the API is inaccessible), how long should we wait before we try again?</div>
+                <input type="number" name="incremental-import-retry-wait" step="1" min="10" required value="{{ .incremental_import_retry_wait }}"/>
+            </div>
+            <div class="edit-import-form-propery" id="edit-import-form-save-div">
+                <input type="submit" value={{if .add}}"Create"{{else}}"Save"{{end}}/>
+            </div>
+        </form>
+    </div>
+  </body>
+</html>

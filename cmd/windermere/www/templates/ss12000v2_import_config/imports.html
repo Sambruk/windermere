@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" type="text/css" href="css/www/css/ss12000v2_import_config/style.css">
+  </head>
+  <body>
+    <h1>Configured SS12000 imports</h1>
+    <div id="imports-list">
+        {{range .imports}}
+        <div class="imports-list-entry">
+            <h2>{{.}}</h2>
+            <div class="edit-import-div">
+                <form action="edit" method="get" class="edit-import-form">
+                    <input type="hidden" name="tenant" value="{{.}}"/>
+                    <input type="submit" value="Edit" class="edit-import-button"/>
+                </form>
+            </div>
+            <div class="delete-import-div">
+                <form action="delete" method="post" class="delete-import-form">
+                    {{ $.csrfField }}
+                    <input type="hidden" name="tenant" value="{{.}}"/>
+                    <input type="submit" value="Delete" class="delete-import-button"/>
+                </form>
+            </div>
+        </div>
+        {{end}}
+    </div>
+    <div id="add-new-import-div">
+        <form action="add" id="add-new-import-form" method="get">
+            <input type="submit" value="Create new import"/>
+        </form>
+    </div>
+  </body>
+</html>
