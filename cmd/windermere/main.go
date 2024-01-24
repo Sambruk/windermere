@@ -366,7 +366,7 @@ func main() {
 		}
 		// TODO: Needs a proper goroutine which can be asked to quit?
 		go func() {
-			err := ss12000v2Server.ListenAndServe()
+			err := ss12000v2Server.ListenAndServeTLS(certFile, keyFile)
 
 			if err != http.ErrServerClosed {
 				log.Fatalf("Unexpected SS12000v2 server exit: %s", err.Error())
