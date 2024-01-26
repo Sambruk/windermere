@@ -74,45 +74,89 @@ func (ir *ImportRunner) getContextCanceller() context.CancelFunc {
 	return ir.contextCanceller
 }
 
-func timeForFullImport(config RunnerConfig) bool {
-	lastStartedFull := config.History.GetTimeOfLastStartedFullImport()
-	lastCompletedFull := config.History.GetTimeOfLastCompletedFullImport()
+func timeForFullImport(config RunnerConfig) (bool, error) {
+	lastStartedFull, err := config.History.GetTimeOfLastStartedFullImport()
+	if err != nil {
+		return false, err
+	}
+	lastCompletedFull, err := config.History.GetTimeOfLastCompletedFullImport()
+	if err != nil {
+		return false, err
+	}
 	if lastCompletedFull.Before(lastStartedFull) && time.Now().Sub(lastStartedFull) < config.FullImportRetryWait {
-		return false
+		return false, nil
 	} else {
-		return time.Now().Sub(lastCompletedFull) > config.FullImportFrequency
+		return time.Now().Sub(lastCompletedFull) > config.FullImportFrequency, nil
 	}
 }
 
-func timeForIncrementalImport(config RunnerConfig) bool {
-	lastStartedIncremental := config.History.GetTimeOfLastStartedIncrementalImport()
-	lastCompletedIncremental := config.History.GetTimeOfLastCompletedIncrementalImport()
-	if timeForFullImport(config) {
-		return false
+func timeForIncrementalImport(config RunnerConfig) (bool, error) {
+	lastStartedIncremental, err := config.History.GetTimeOfLastStartedIncrementalImport()
+	if err != nil {
+		return false, err
+	}
+	lastCompletedIncremental, err := config.History.GetTimeOfLastCompletedIncrementalImport()
+	if err != nil {
+		return false, err
+	}
+	fullImport, err := timeForFullImport(config)
+	if err != nil {
+		return false, err
+	}
+	if fullImport {
+		return false, nil
 	} else if lastCompletedIncremental.Before(lastStartedIncremental) && time.Now().Sub(lastStartedIncremental) < config.IncrementalImportRetryWait {
-		return false
+		return false, nil
 	} else {
-		return time.Now().Sub(lastCompletedIncremental) > config.IncrementalImportFrequency
+		return time.Now().Sub(lastCompletedIncremental) > config.IncrementalImportFrequency, nil
 	}
 }
 
 func (ir *ImportRunner) importTick(ctx context.Context, logger *log.Logger) {
-	var err error
-	if timeForFullImport(ir.config) {
-		ir.config.History.SetTimeOfLastStartedFullImport(time.Now())
+	timeForFull, err := timeForFullImport(ir.config)
+	if err != nil {
+		logger.Printf("Failed to determine whether it's time to do a full import for %s: %s", ir.config.Tenant, err.Error())
+		return
+	}
+	if timeForFull {
+		err = ir.config.History.SetTimeOfLastStartedFullImport(time.Now())
+		if err != nil {
+			logger.Printf("Failed to set time of last started full import for %s: %s", ir.config.Tenant, err.Error())
+			return
+		}
 		err = FullImport(ctx, logger, ir.config.Tenant, ir.config.Client, ir.config.Backend, ir.config.History)
 		if err == nil {
-			ir.config.History.SetTimeOfLastCompletedFullImport(time.Now())
+			err = ir.config.History.SetTimeOfLastCompletedFullImport(time.Now())
+			if err != nil {
+				logger.Printf("Failed to set time of last completed full import for %s: %s", ir.config.Tenant, err.Error())
+			}
+		} else {
+			logger.Printf("Failed to do full import for %s: %s", ir.config.Tenant, err.Error())
 		}
-	} else if timeForIncrementalImport(ir.config) {
-		ir.config.History.SetTimeOfLastStartedIncrementalImport(time.Now())
+		return
+	}
+
+	timeForIncremental, err := timeForIncrementalImport(ir.config)
+	if err != nil {
+		logger.Printf("Failed to determine whether it's time to do an incremental import for %s: %s", ir.config.Tenant, err.Error())
+		return
+	}
+	if timeForIncremental {
+		err = ir.config.History.SetTimeOfLastStartedIncrementalImport(time.Now())
+		if err != nil {
+			logger.Printf("Failed to set time of last started incremental import for %s: %s", ir.config.Tenant, err.Error())
+			return
+		}
 		err = IncrementalImport(ctx, logger, ir.config.Tenant, ir.config.Client, ir.config.Backend, ir.config.History)
 		if err == nil {
-			ir.config.History.SetTimeOfLastCompletedIncrementalImport(time.Now())
+			err = ir.config.History.SetTimeOfLastCompletedIncrementalImport(time.Now())
+			if err != nil {
+				logger.Printf("Failed to set time of last completed incremental import for %s: %s", ir.config.Tenant, err.Error())
+			}
+		} else {
+			logger.Printf("Failed to do incremental import for %s: %s", ir.config.Tenant, err.Error())
 		}
-	}
-	if err != nil {
-		logger.Printf("Failed to import for %s: %s", ir.config.Tenant, err.Error())
+		return
 	}
 }
 

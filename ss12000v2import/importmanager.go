@@ -6,14 +6,19 @@ package ss12000v2import
 type ImportManager struct {
 	quit   chan int
 	add    chan RunnerConfig
-	delete chan string
+	delete chan deleteCommand
+}
+
+type deleteCommand struct {
+	tenant string
+	reply  chan int
 }
 
 func NewImportManager() *ImportManager {
 	var im ImportManager
 	im.quit = make(chan int)
 	im.add = make(chan RunnerConfig)
-	im.delete = make(chan string)
+	im.delete = make(chan deleteCommand)
 	go importManager(&im)
 	return &im
 }
@@ -28,8 +33,18 @@ func (im *ImportManager) AddRunner(conf RunnerConfig) {
 	im.add <- conf
 }
 
+// DeleteRunner blocks until the runner is stopped and deleted.
+// The reason it blocks is because we have to know for sure the
+// runner isn't running an import when we remove the configuration
+// from persistence (since the runner might want to record history
+// while it's running).
 func (im *ImportManager) DeleteRunner(tenant string) {
-	im.delete <- tenant
+	command := deleteCommand{
+		tenant: tenant,
+		reply:  make(chan int),
+	}
+	im.delete <- command
+	<-command.reply
 }
 
 func importManager(im *ImportManager) {
@@ -42,11 +57,12 @@ func importManager(im *ImportManager) {
 			}
 			runner := NewImportRunner(conf)
 			runners[conf.Tenant] = runner
-		case tenant := <-im.delete:
-			if oldRunner, ok := runners[tenant]; ok {
+		case delCmd := <-im.delete:
+			if oldRunner, ok := runners[delCmd.tenant]; ok {
 				oldRunner.Quit()
-				delete(runners, tenant)
+				delete(runners, delCmd.tenant)
 			}
+			delCmd.reply <- 0
 		case <-im.quit:
 			for _, runner := range runners {
 				runner.Quit()

@@ -38,10 +38,13 @@ func handlerWithConfigurationHandler(ch *ss12000v2ImportConfigurationHandler, h 
 
 func listImportsHandler(w http.ResponseWriter, r *http.Request, ch *ss12000v2ImportConfigurationHandler) {
 	templateData := make(map[string]interface{})
-	imports := ch.controller.GetAllImports()
+	imports, err := ch.controller.GetAllImports()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Couldn't get import configurations from persistence: %s", err.Error()), http.StatusInternalServerError)
+	}
 	templateData["imports"] = imports
 	templateData[csrf.TemplateTag] = csrf.TemplateField(r)
-	err := ch.templates.ExecuteTemplate(w, "imports.html", templateData)
+	err = ch.templates.ExecuteTemplate(w, "imports.html", templateData)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

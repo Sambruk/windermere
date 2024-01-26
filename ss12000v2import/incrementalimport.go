@@ -169,10 +169,21 @@ func IncrementalImport(ctx context.Context, logger *log.Logger, tenant string, c
 	logger.Printf("Starting incremental SS12000 import for %s\n", tenant)
 
 	timeOfDeletedEntitiesCall := time.Now()
-	deletedEntities, err := getAllDeletedEntities(ctx, client, importHistory.GetTimeOfLastDeletedEntitiesCall())
+	timeOfLastDeletedEntitiesCall, err := importHistory.GetTimeOfLastDeletedEntitiesCall()
+	if err != nil {
+		return fmt.Errorf("IncrementalImport: failed to read history: %s", err.Error())
+	}
+
+	deletedEntities, err := getAllDeletedEntities(ctx, client, timeOfLastDeletedEntitiesCall)
+	if err != nil {
+		return fmt.Errorf("IncrementalImport: failed to get deleted entities: %s", err.Error())
+	}
 
 	// Principal organisations (huvudmän)
-	createdAfter := importHistory.GetMostRecentlyCreated("PrincipalOrganisations")
+	createdAfter, err := importHistory.GetMostRecentlyCreated("PrincipalOrganisations")
+	if err != nil {
+		return fmt.Errorf("IncrementalImport: failed to read history: %s", err.Error())
+	}
 
 	orgsCreatedAfter, err := getAllOrganisationsOfType(ctx, client, ss12000v2.OrganisationTypeEnumHuvudman, &createdAfter, nil)
 
@@ -180,7 +191,10 @@ func IncrementalImport(ctx context.Context, logger *log.Logger, tenant string, c
 		return fmt.Errorf("IncrementalImport: failed to get recently created principal organisations: %s", err.Error())
 	}
 
-	modifiedAfter := importHistory.GetMostRecentlyModified("PrincipalOrganisations")
+	modifiedAfter, err := importHistory.GetMostRecentlyModified("PrincipalOrganisations")
+	if err != nil {
+		return fmt.Errorf("IncrementalImport: failed to read history: %s", err.Error())
+	}
 
 	orgsModifiedAfter, err := getAllOrganisationsOfType(ctx, client, ss12000v2.OrganisationTypeEnumHuvudman, nil, &modifiedAfter)
 
@@ -202,12 +216,22 @@ func IncrementalImport(ctx context.Context, logger *log.Logger, tenant string, c
 		return fmt.Errorf("IncrementalImport: failed to incrementally replace organisations: %s", err.Error())
 	} else {
 		created, modified := organisationTimestamps(orgs)
-		importHistory.RecordMostRecent(created, modified, "PrincipalOrganisations")
+		err = importHistory.RecordMostRecent(created, modified, "PrincipalOrganisations")
+		if err != nil {
+			return fmt.Errorf("Failed to record most recent created/modified: %s", err.Error())
+		}
 	}
 
 	// SchoolUnit organisations
-	createdAfter = importHistory.GetMostRecentlyCreated("SchoolUnitOrganisations")
-	modifiedAfter = importHistory.GetMostRecentlyModified("SchoolUnitOrganisations")
+	createdAfter, err = importHistory.GetMostRecentlyCreated("SchoolUnitOrganisations")
+	if err != nil {
+		return fmt.Errorf("IncrementalImport: failed to read history: %s", err.Error())
+	}
+
+	modifiedAfter, err = importHistory.GetMostRecentlyModified("SchoolUnitOrganisations")
+	if err != nil {
+		return fmt.Errorf("IncrementalImport: failed to read history: %s", err.Error())
+	}
 
 	allSchoolUnits, err := getAllOrganisationsOfType(ctx, client, ss12000v2.OrganisationTypeEnumSkolenhet, nil, nil)
 
@@ -242,11 +266,17 @@ func IncrementalImport(ctx context.Context, logger *log.Logger, tenant string, c
 		return fmt.Errorf("IncrementalImport: failed to incrementally replace school units: %s", err.Error())
 	} else {
 		created, modified := organisationTimestamps(orgs)
-		importHistory.RecordMostRecent(created, modified, "SchoolUnitOrganisations")
+		err = importHistory.RecordMostRecent(created, modified, "SchoolUnitOrganisations")
+		if err != nil {
+			return fmt.Errorf("Failed to record most recent created/modified: %s", err.Error())
+		}
 	}
 
 	// Persons
-	createdAfter = importHistory.GetMostRecentlyCreated("Persons")
+	createdAfter, err = importHistory.GetMostRecentlyCreated("Persons")
+	if err != nil {
+		return fmt.Errorf("IncrementalImport: failed to read history: %s", err.Error())
+	}
 
 	personsCreatedAfter, err := getAllPersons(ctx, client, &createdAfter, nil)
 
@@ -254,7 +284,10 @@ func IncrementalImport(ctx context.Context, logger *log.Logger, tenant string, c
 		return fmt.Errorf("IncrementalImport: failed to get recently created persons: %s", err.Error())
 	}
 
-	modifiedAfter = importHistory.GetMostRecentlyModified("Persons")
+	modifiedAfter, err = importHistory.GetMostRecentlyModified("Persons")
+	if err != nil {
+		return fmt.Errorf("IncrementalImport: failed to read history: %s", err.Error())
+	}
 
 	personsModifiedAfter, err := getAllPersons(ctx, client, nil, &modifiedAfter)
 
@@ -280,11 +313,17 @@ func IncrementalImport(ctx context.Context, logger *log.Logger, tenant string, c
 		return fmt.Errorf("IncrementalImport: failed to incrementally replace persons: %s", err.Error())
 	} else {
 		created, modified := personTimestamps(persons)
-		importHistory.RecordMostRecent(created, modified, "Persons")
+		err = importHistory.RecordMostRecent(created, modified, "Persons")
+		if err != nil {
+			return fmt.Errorf("Failed to record most recent created/modified: %s", err.Error())
+		}
 	}
 
 	// Groups
-	createdAfter = importHistory.GetMostRecentlyCreated("Groups")
+	createdAfter, err = importHistory.GetMostRecentlyCreated("Groups")
+	if err != nil {
+		return fmt.Errorf("IncrementalImport: failed to read history: %s", err.Error())
+	}
 
 	groupsCreatedAfter, err := getAllGroups(ctx, client, &createdAfter, nil)
 
@@ -292,7 +331,10 @@ func IncrementalImport(ctx context.Context, logger *log.Logger, tenant string, c
 		return fmt.Errorf("IncrementalImport: failed to get recently created groups: %s", err.Error())
 	}
 
-	modifiedAfter = importHistory.GetMostRecentlyModified("Groups")
+	modifiedAfter, err = importHistory.GetMostRecentlyModified("Groups")
+	if err != nil {
+		return fmt.Errorf("IncrementalImport: failed to read history: %s", err.Error())
+	}
 
 	groupsModifiedAfter, err := getAllGroups(ctx, client, nil, &modifiedAfter)
 
@@ -321,11 +363,17 @@ func IncrementalImport(ctx context.Context, logger *log.Logger, tenant string, c
 		return fmt.Errorf("IncrementalImport: failed to incrementally replace student groups: %s", err.Error())
 	} else {
 		created, modified := groupTimestamps(groups)
-		importHistory.RecordMostRecent(created, modified, "Groups")
+		err = importHistory.RecordMostRecent(created, modified, "Groups")
+		if err != nil {
+			return fmt.Errorf("Failed to record most recent created/modified: %s", err.Error())
+		}
 	}
 
 	// Duties
-	createdAfter = importHistory.GetMostRecentlyCreated("Duties")
+	createdAfter, err = importHistory.GetMostRecentlyCreated("Duties")
+	if err != nil {
+		return fmt.Errorf("IncrementalImport: failed to read history: %s", err.Error())
+	}
 
 	dutiesCreatedAfter, err := getAllDuties(ctx, client, &createdAfter, nil)
 
@@ -333,7 +381,10 @@ func IncrementalImport(ctx context.Context, logger *log.Logger, tenant string, c
 		return fmt.Errorf("IncrementalImport: failed to get recently created duties: %s", err.Error())
 	}
 
-	modifiedAfter = importHistory.GetMostRecentlyModified("Duties")
+	modifiedAfter, err = importHistory.GetMostRecentlyModified("Duties")
+	if err != nil {
+		return fmt.Errorf("IncrementalImport: failed to read history: %s", err.Error())
+	}
 
 	dutiesModifiedAfter, err := getAllDuties(ctx, client, nil, &modifiedAfter)
 
@@ -359,11 +410,18 @@ func IncrementalImport(ctx context.Context, logger *log.Logger, tenant string, c
 		return fmt.Errorf("IncrementalImport: failed to incrementally replace employments: %s", err.Error())
 	} else {
 		created, modified := dutyTimestamps(duties)
-		importHistory.RecordMostRecent(created, modified, "Duties")
+		err = importHistory.RecordMostRecent(created, modified, "Duties")
+		if err != nil {
+			return fmt.Errorf("Failed to record most recent created/modified: %s", err.Error())
+		}
+
 	}
 
 	// Activities
-	createdAfter = importHistory.GetMostRecentlyCreated("Activities")
+	createdAfter, err = importHistory.GetMostRecentlyCreated("Activities")
+	if err != nil {
+		return fmt.Errorf("IncrementalImport: failed to read history: %s", err.Error())
+	}
 
 	activitiesCreatedAfter, err := getAllActivities(ctx, client, &createdAfter, nil)
 
@@ -371,7 +429,10 @@ func IncrementalImport(ctx context.Context, logger *log.Logger, tenant string, c
 		return fmt.Errorf("IncrementalImport: failed to get recently created activities: %s", err.Error())
 	}
 
-	modifiedAfter = importHistory.GetMostRecentlyModified("Activities")
+	modifiedAfter, err = importHistory.GetMostRecentlyModified("Activities")
+	if err != nil {
+		return fmt.Errorf("IncrementalImport: failed to read history: %s", err.Error())
+	}
 
 	activitiesModifiedAfter, err := getAllActivities(ctx, client, nil, &modifiedAfter)
 
@@ -394,7 +455,10 @@ func IncrementalImport(ctx context.Context, logger *log.Logger, tenant string, c
 		return fmt.Errorf("IncrementalImport: failed to incrementally replace activities: %s", err.Error())
 	} else {
 		created, modified := activityTimestamps(activities)
-		importHistory.RecordMostRecent(created, modified, "Activities")
+		err = importHistory.RecordMostRecent(created, modified, "Activities")
+		if err != nil {
+			return fmt.Errorf("Failed to record most recent created/modified: %s", err.Error())
+		}
 	}
 
 	// Delete all deleted entities
@@ -424,7 +488,11 @@ func IncrementalImport(ctx context.Context, logger *log.Logger, tenant string, c
 	}
 
 	// All done deleting for all types, now we can record when we last called deletedEntities
-	importHistory.SetTimeOfLastDeletedEntitiesCall(timeOfDeletedEntitiesCall)
+	err = importHistory.SetTimeOfLastDeletedEntitiesCall(timeOfDeletedEntitiesCall)
+
+	if err != nil {
+		return fmt.Errorf("Failed to record time of last deletedEntities call: %s", err.Error())
+	}
 
 	logger.Printf("Incremental SS12000 import done for %s\n", tenant)
 	return nil

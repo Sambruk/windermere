@@ -278,7 +278,10 @@ func FullImport(ctx context.Context, logger *log.Logger, tenant string, client s
 		return fmt.Errorf("FullImport: failed to replace organisations: %s", err.Error())
 	} else {
 		created, modified := organisationTimestamps(orgs)
-		importHistory.RecordMostRecent(created, modified, "PrincipalOrganisations")
+		err = importHistory.RecordMostRecent(created, modified, "PrincipalOrganisations")
+		if err != nil {
+			return fmt.Errorf("Failed to record most recent created/modified: %s", err.Error())
+		}
 	}
 
 	orgs, err = getAllOrganisationsOfType(ctx, client, ss12000v2.OrganisationTypeEnumSkolenhet, nil, nil)
@@ -304,7 +307,10 @@ func FullImport(ctx context.Context, logger *log.Logger, tenant string, client s
 		return fmt.Errorf("FullImport: failed to replace school units: %s", err.Error())
 	} else {
 		created, modified := organisationTimestamps(orgs)
-		importHistory.RecordMostRecent(created, modified, "SchoolUnitOrganisations")
+		err = importHistory.RecordMostRecent(created, modified, "SchoolUnitOrganisations")
+		if err != nil {
+			return fmt.Errorf("Failed to record most recent created/modified: %s", err.Error())
+		}
 	}
 
 	persons, err := getAllPersons(ctx, client, nil, nil)
@@ -328,7 +334,10 @@ func FullImport(ctx context.Context, logger *log.Logger, tenant string, client s
 		return fmt.Errorf("FullImport: failed to replace users: %s", err.Error())
 	} else {
 		created, modified := personTimestamps(persons)
-		importHistory.RecordMostRecent(created, modified, "Persons")
+		err = importHistory.RecordMostRecent(created, modified, "Persons")
+		if err != nil {
+			return fmt.Errorf("Failed to record most recent created/modified: %s", err.Error())
+		}
 	}
 
 	groups, err := getAllGroups(ctx, client, nil, nil)
@@ -354,7 +363,11 @@ func FullImport(ctx context.Context, logger *log.Logger, tenant string, client s
 		return fmt.Errorf("FullImport: failed to replace student groups: %s", err.Error())
 	} else {
 		created, modified := groupTimestamps(groups)
-		importHistory.RecordMostRecent(created, modified, "Groups")
+		err = importHistory.RecordMostRecent(created, modified, "Groups")
+		if err != nil {
+			return fmt.Errorf("Failed to record most recent created/modified: %s", err.Error())
+		}
+
 	}
 
 	duties, err := getAllDuties(ctx, client, nil, nil)
@@ -378,7 +391,10 @@ func FullImport(ctx context.Context, logger *log.Logger, tenant string, client s
 		return fmt.Errorf("FullImport: failed to replace employments: %s", err.Error())
 	} else {
 		created, modified := dutyTimestamps(duties)
-		importHistory.RecordMostRecent(created, modified, "Duties")
+		err = importHistory.RecordMostRecent(created, modified, "Duties")
+		if err != nil {
+			return fmt.Errorf("Failed to record most recent created/modified: %s", err.Error())
+		}
 	}
 
 	activities, err := getAllActivities(ctx, client, nil, nil)
@@ -398,12 +414,18 @@ func FullImport(ctx context.Context, logger *log.Logger, tenant string, client s
 		return fmt.Errorf("FullImport: failed to replace activities: %s", err.Error())
 	} else {
 		created, modified := activityTimestamps(activities)
-		importHistory.RecordMostRecent(created, modified, "Activities")
+		err = importHistory.RecordMostRecent(created, modified, "Activities")
+		if err != nil {
+			return fmt.Errorf("Failed to record most recent created/modified: %s", err.Error())
+		}
 	}
 
 	// We haven't done a deletedEntities call yet, but the first time we do an
 	// incremental import we shouldn't get deleted entities from the beginning of time...
-	importHistory.SetTimeOfLastDeletedEntitiesCall(timeOfFullImportStart)
+	err = importHistory.SetTimeOfLastDeletedEntitiesCall(timeOfFullImportStart)
+	if err != nil {
+		return fmt.Errorf("Failed to record time of last deletedEntities call: %s", err.Error())
+	}
 	logger.Printf("Full SS12000 import done for %s\n", tenant)
 	return nil
 }
