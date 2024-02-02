@@ -32,6 +32,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Sambruk/windermere/ss12000v2import"
 	"github.com/Sambruk/windermere/windermere"
 	"github.com/joesiltberg/bowness/fedtls"
 	"github.com/joesiltberg/bowness/server"
@@ -70,38 +71,40 @@ func waitForShutdownSignal() {
 
 // Configuration parameters
 const (
-	CNFMDURL                  = "MetadataURL"
-	CNFMDDefaultCacheTTL      = "MetadataDefaultCacheTTL"
-	CNFMDNetworkRetry         = "MetadataNetworkRetry"
-	CNFMDBadContentRetry      = "MetadataBadContentRetry"
-	CNFMDCachePath            = "MetadataCachePath"
-	CNFReadHeaderTimeout      = "ReadHeaderTimeout"
-	CNFReadTimeout            = "ReadTimeout"
-	CNFWriteTimeout           = "WriteTimeout"
-	CNFIdleTimeout            = "IdleTimeout"
-	CNFBackendTimeout         = "BackendTimeout"
-	CNFEnableLimiting         = "EnableLimiting"
-	CNFLimitRequestsPerSecond = "LimitRequestsPerSecond"
-	CNFLimitBurst             = "LimitBurst"
-	CNFStorageType            = "StorageType"
-	CNFStorageSource          = "StorageSource"
-	CNFAccessLogPath          = "AccessLogPath"
-	CNFJWKSPath               = "JWKSPath"
-	CNFCert                   = "Cert"
-	CNFKey                    = "Key"
-	CNFListenAddress          = "ListenAddress"
-	CNFAdminListenAddress     = "AdminListenAddress"
-	CNFMDEntityID             = "MetadataEntityID"
-	CNFMDBaseURI              = "MetadataBaseURI"
-	CNFMDOrganization         = "MetadataOrganization"
-	CNFMDOrganizationID       = "MetadataOrganizationID"
-	CNFValidateUUID           = "ValidateUUID"
-	CNFValidateSchoolUnitCode = "ValidateSchoolUnitCode"
-	CNFSkolsynkListenAddress  = "SkolsynkListenAddress"
-	CNFSkolsynkAuthHeader     = "SkolsynkAuthHeader"
-	CNFSkolsynkCert           = "SkolsynkCert"
-	CNFSkolsynkKey            = "SkolsynkKey"
-	CNFSkolsynkClients        = "SkolsynkClients"
+	CNFMDURL                     = "MetadataURL"
+	CNFMDDefaultCacheTTL         = "MetadataDefaultCacheTTL"
+	CNFMDNetworkRetry            = "MetadataNetworkRetry"
+	CNFMDBadContentRetry         = "MetadataBadContentRetry"
+	CNFMDCachePath               = "MetadataCachePath"
+	CNFReadHeaderTimeout         = "ReadHeaderTimeout"
+	CNFReadTimeout               = "ReadTimeout"
+	CNFWriteTimeout              = "WriteTimeout"
+	CNFIdleTimeout               = "IdleTimeout"
+	CNFBackendTimeout            = "BackendTimeout"
+	CNFEnableLimiting            = "EnableLimiting"
+	CNFLimitRequestsPerSecond    = "LimitRequestsPerSecond"
+	CNFLimitBurst                = "LimitBurst"
+	CNFStorageType               = "StorageType"
+	CNFStorageSource             = "StorageSource"
+	CNFAccessLogPath             = "AccessLogPath"
+	CNFJWKSPath                  = "JWKSPath"
+	CNFCert                      = "Cert"
+	CNFKey                       = "Key"
+	CNFListenAddress             = "ListenAddress"
+	CNFAdminListenAddress        = "AdminListenAddress"
+	CNFAdminCSRFSecret           = "AdminCSRFSecret"
+	CNFMDEntityID                = "MetadataEntityID"
+	CNFMDBaseURI                 = "MetadataBaseURI"
+	CNFMDOrganization            = "MetadataOrganization"
+	CNFMDOrganizationID          = "MetadataOrganizationID"
+	CNFValidateUUID              = "ValidateUUID"
+	CNFValidateSchoolUnitCode    = "ValidateSchoolUnitCode"
+	CNFSkolsynkListenAddress     = "SkolsynkListenAddress"
+	CNFSkolsynkAuthHeader        = "SkolsynkAuthHeader"
+	CNFSkolsynkCert              = "SkolsynkCert"
+	CNFSkolsynkKey               = "SkolsynkKey"
+	CNFSkolsynkClients           = "SkolsynkClients"
+	CNFSS12000v2ImportConfigPath = "SS12000v2ImportConfigPath"
 )
 
 // Parses the config value for clients to a map[string]string
@@ -149,25 +152,27 @@ func parseClients(value interface{}) (map[string]string, error) {
 func main() {
 	// Configuration defaults
 	defaults := map[string]interface{}{
-		CNFMDURL:                  "https://fed.skolfederation.se/prod/md/kontosynk.jws",
-		CNFMDDefaultCacheTTL:      3600,
-		CNFMDNetworkRetry:         60,
-		CNFMDBadContentRetry:      3600,
-		CNFReadHeaderTimeout:      5,
-		CNFReadTimeout:            20,
-		CNFWriteTimeout:           40,
-		CNFIdleTimeout:            60,
-		CNFBackendTimeout:         30,
-		CNFEnableLimiting:         false,
-		CNFLimitRequestsPerSecond: 10.0,
-		CNFLimitBurst:             50,
-		CNFStorageType:            "file",
-		CNFStorageSource:          "SS12000.json",
-		CNFAccessLogPath:          "",
-		CNFAdminListenAddress:     "",
-		CNFValidateUUID:           true,
-		CNFValidateSchoolUnitCode: true,
-		CNFSkolsynkAuthHeader:     "X-API-Key",
+		CNFMDURL:                     "https://fed.skolfederation.se/prod/md/kontosynk.jws",
+		CNFMDDefaultCacheTTL:         3600,
+		CNFMDNetworkRetry:            60,
+		CNFMDBadContentRetry:         3600,
+		CNFReadHeaderTimeout:         5,
+		CNFReadTimeout:               20,
+		CNFWriteTimeout:              40,
+		CNFIdleTimeout:               60,
+		CNFBackendTimeout:            30,
+		CNFEnableLimiting:            false,
+		CNFLimitRequestsPerSecond:    10.0,
+		CNFLimitBurst:                50,
+		CNFStorageType:               "file",
+		CNFStorageSource:             "SS12000.json",
+		CNFAccessLogPath:             "",
+		CNFAdminListenAddress:        "",
+		CNFAdminCSRFSecret:           "",
+		CNFValidateUUID:              true,
+		CNFValidateSchoolUnitCode:    true,
+		CNFSkolsynkAuthHeader:        "X-API-Key",
+		CNFSS12000v2ImportConfigPath: "",
 	}
 	for key, value := range defaults {
 		viper.SetDefault(key, value)
@@ -341,6 +346,18 @@ func main() {
 		}()
 	}
 
+	// Get a suitable CSRF secret
+	var csrfSecret []byte
+	configuredCSRFSecret := viper.GetString(CNFAdminCSRFSecret)
+	if configuredCSRFSecret != "" {
+		csrfSecret = []byte(configuredCSRFSecret)
+	} else {
+		csrfSecret, err = os.ReadFile(keyFile)
+		if err != nil {
+			log.Fatalf("Failed to read private key %s: %s", keyFile, err.Error())
+		}
+	}
+
 	// Possibly start the admin HTTP server
 	adminAddress := viper.GetString(CNFAdminListenAddress)
 	if adminAddress != "" {
@@ -350,6 +367,29 @@ func main() {
 		go func() {
 			log.Println(http.ListenAndServeTLS(adminAddress, certFile, keyFile, nil))
 		}()
+	}
+
+	// Possibly set up the SS12000 v2 import system
+	var importManager *ss12000v2import.ImportManager
+	persistencePath := viper.GetString(CNFSS12000v2ImportConfigPath)
+	if persistencePath != "" {
+		v1tov2ImportBackend, err := wind.GetSS12000v2tov1Backend()
+		if err != nil {
+			log.Fatalf("Failed to get SS12000 import backend: %s", err.Error())
+		}
+
+		importManager = ss12000v2import.NewImportManager()
+
+		importPersistence, err := NewSS12000v2ImportPersistence(persistencePath)
+		if err != nil {
+			log.Fatalf("Failed to create SS12000 import persistence layer: %s", err.Error())
+		}
+
+		importController := NewSS12000v2ImportController(importPersistence, importManager, v1tov2ImportBackend)
+		importController.StartAll()
+
+		configurationHandler := NewSS12000v2ImportConfigurationHandler(importController, csrfSecret)
+		http.Handle("/ss12000v2_import_config/", http.StripPrefix("/ss12000v2_import_config", configurationHandler))
 	}
 
 	waitForShutdownSignal()
@@ -368,6 +408,11 @@ func main() {
 		if err != nil {
 			log.Printf("Failed to gracefully shutdown Skolsynk server: %v", err)
 		}
+	}
+
+	if importManager != nil {
+		log.Printf("Waiting for SS12000v2 importers to close...")
+		importManager.Quit()
 	}
 
 	err = wind.Shutdown()
