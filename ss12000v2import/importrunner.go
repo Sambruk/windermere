@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -20,8 +21,9 @@ import (
 type ImportRunner struct {
 	quit             chan int
 	contextCanceller context.CancelFunc
+	stopped          bool
 
-	// This mutex protects the contextCanceller
+	// This mutex protects the contextCanceller and stopped
 	// (the other members should be thread safe or only accessed by the ImportRunner which is single threaded)
 	lock sync.Mutex
 
@@ -53,6 +55,9 @@ func NewImportRunner(conf RunnerConfig) *ImportRunner {
 
 // Stops the ImportRunner (blocks until the runner has stopped)
 func (ir *ImportRunner) Quit() {
+	if ir.isStopped() {
+		return
+	}
 	canceller := ir.getContextCanceller()
 	if canceller != nil {
 		canceller()
@@ -72,6 +77,18 @@ func (ir *ImportRunner) getContextCanceller() context.CancelFunc {
 	ir.lock.Lock()
 	defer ir.lock.Unlock()
 	return ir.contextCanceller
+}
+
+func (ir *ImportRunner) setStopped() {
+	ir.lock.Lock()
+	defer ir.lock.Unlock()
+	ir.stopped = true
+}
+
+func (ir *ImportRunner) isStopped() bool {
+	ir.lock.Lock()
+	defer ir.lock.Unlock()
+	return ir.stopped
 }
 
 func timeForFullImport(config RunnerConfig) (bool, error) {
@@ -112,7 +129,22 @@ func timeForIncrementalImport(config RunnerConfig) (bool, error) {
 	}
 }
 
-func (ir *ImportRunner) importTick(ctx context.Context, logger *log.Logger) {
+// The import tick carries out the work of the import and is called regularly.
+// It will usually do nothing, but sometimes a full import and sometimes an
+// incremental import.
+// The error returned from this function is ONLY used to signal that a panic has
+// happened during the import, and that the import runner should stop.
+func (ir *ImportRunner) importTick(ctx context.Context, logger *log.Logger) (panicerr error) {
+	// Make sure we recover from panic so as to not crash the whole service,
+	// only this import runner should terminate.
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Printf("Unexpected panic in import runner")
+			logger.Printf("Recovered reason: %v", r)
+			logger.Println("Stacktrace from panic: \n" + string(debug.Stack()))
+			panicerr = fmt.Errorf("recovered from panic")
+		}
+	}()
 	timeForFull, err := timeForFullImport(ir.config)
 	if err != nil {
 		logger.Printf("Failed to determine whether it's time to do a full import for %s: %s", ir.config.Tenant, err.Error())
@@ -158,6 +190,7 @@ func (ir *ImportRunner) importTick(ctx context.Context, logger *log.Logger) {
 		}
 		return
 	}
+	return
 }
 
 func importRunner(ir *ImportRunner) {
@@ -184,9 +217,22 @@ func importRunner(ir *ImportRunner) {
 		case <-retry.C:
 			ctx, runningCancel := context.WithCancel(context.Background())
 			ir.setContextCanceller(runningCancel)
-			ir.importTick(ctx, logger)
+			err := ir.importTick(ctx, logger)
 			ir.setContextCanceller(nil)
 			runningCancel()
+			if err != nil {
+				logger.Printf("Stopping import runner")
+				ir.setStopped()
+				// In the unlikely event that someone has already asked us to quit
+				// we don't want them to block indefinitely waiting on the quit channel.
+				select {
+				case <-ir.quit:
+					ir.quit <- 0
+					return
+				default:
+				}
+				return
+			}
 		}
 	}
 }
