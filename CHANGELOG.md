@@ -1,6 +1,9 @@
 ## Releases
 
-## v1.0.1 (2024-02-28)
+## v1.0.2 (2024-02-28)
+  Upgrades dependencies due to security alerts (GitHub dependabot).
+
+## v1.0.1 (2023-02-28)
   Upgrades dependencies due to security alerts (GitHub dependabot).
 
 ## v1.0.0 (2023-02-22)
