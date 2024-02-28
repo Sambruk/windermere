@@ -1,5 +1,8 @@
 ## Releases
 
+## v1.0.1 (2024-02-28)
+  Upgrades dependencies due to security alerts (GitHub dependabot).
+
 ## v1.0.0 (2023-02-22)
   Version 1.0.0 set to signal that Windermere is considered mature enough
   for production deployment. Also to show intent to maintain backwards
