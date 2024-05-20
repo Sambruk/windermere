@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -24,6 +25,11 @@ type Adapter struct {
 	personExpander      *ss12000v2.PersonExpander // Helps us expand Person objects
 }
 
+func validEmail(email string) bool {
+	_, err := mail.ParseAddress(email)
+	return err == nil
+}
+
 func userToPerson(user ss12000v1.User, skipEnrolmentsFor map[string]bool) (p ss12000v2.PersonExpanded, err error) {
 	p.Id, err = uuid.Parse(user.ID)
 	if err != nil {
@@ -33,14 +39,23 @@ func userToPerson(user ss12000v1.User, skipEnrolmentsFor map[string]bool) (p ss1
 	p.FamilyName = user.Name.FamilyName
 	p.GivenName = user.Name.GivenName
 
-	emails := make([]ss12000v2.Email, len(user.Emails))
+	emails := make([]ss12000v2.Email, 0)
 	p.Emails = &emails
 
 	for i := range user.Emails {
-		emails[i].Value = openapi_types.Email(user.Emails[i].Value)
-		if user.Emails[i].Type != "" {
-			emails[i].Type = ss12000v2.EmailType(user.Emails[i].Type)
+		// In SCIM (and therefore SS12000:2018) email addresses are recommended
+		// to be valid, but not required. In SS12000:2020 they are required to
+		// have the format 'email' and thus required to be valid. So if there
+		// are invalid email addresses, we'll simply skip them.
+		if !validEmail(user.Emails[i].Value) {
+			continue
 		}
+		var email ss12000v2.Email
+		email.Value = openapi_types.Email(user.Emails[i].Value)
+		if user.Emails[i].Type != "" {
+			email.Type = ss12000v2.EmailType(user.Emails[i].Type)
+		}
+		emails = append(emails, email)
 	}
 
 	if user.Extension.CivicNo != nil {
