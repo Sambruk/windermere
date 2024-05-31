@@ -3,7 +3,7 @@ module github.com/Sambruk/windermere
 go 1.18
 
 require (
-	github.com/Sambruk/lakeside v0.0.0
+	github.com/Sambruk/lakeside v0.0.0-20231016130741-794872f73546
 	github.com/deepmap/oapi-codegen v1.12.4
 	github.com/denisenkom/go-mssqldb v0.11.0
 	github.com/go-sql-driver/mysql v1.5.0
@@ -65,5 +65,3 @@ require (
 	modernc.org/strutil v1.1.1 // indirect
 	modernc.org/token v1.0.0 // indirect
 )
-
-replace github.com/Sambruk/lakeside => /home/joe/git/lakeside
