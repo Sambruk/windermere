@@ -3,7 +3,7 @@ module github.com/Sambruk/windermere
 go 1.18
 
 require (
-	github.com/Sambruk/lakeside v0.0.0-20240531101615-8cc6cb41fdc9
+	github.com/Sambruk/lakeside v1.0.0
 	github.com/deepmap/oapi-codegen v1.12.4
 	github.com/denisenkom/go-mssqldb v0.11.0
 	github.com/go-sql-driver/mysql v1.5.0
