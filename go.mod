@@ -10,7 +10,7 @@ require (
 	github.com/google/renameio v1.0.1
 	github.com/google/uuid v1.3.0
 	github.com/jmoiron/sqlx v1.3.4
-	github.com/joesiltberg/bowness v1.0.1
+	github.com/joesiltberg/bowness v1.1.1
 	github.com/spf13/viper v1.12.0
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306
 	modernc.org/sqlite v1.14.3
