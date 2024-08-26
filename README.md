@@ -87,6 +87,8 @@ Example for MySQL/MariaDB:
 To build Windermere, go into the directory `cmd/windermere` and run `go build`,
 this should give you an executable named `windermere` in the same directory.
 
+If you don't want to build yourself you can find binaries on GitHub (under Releases).
+
 ### Running
 
 Go to the directory where you have the certificates and windermere configuration
