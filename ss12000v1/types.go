@@ -284,9 +284,10 @@ func (ur *UserRelation) UnmarshalJSON(data []byte) (err error) {
 
 // UserExtension is SS12000:2018's extension to the SCIM user object
 type UserExtension struct {
-	Enrolments    []Enrolment    `json:"enrolments,omitempty"`
-	CivicNo       *string        `json:"civicNo,omitempty"`
-	UserRelations []UserRelation `json:"userRelations,omitempty"`
+	Enrolments      []Enrolment    `json:"enrolments,omitempty"`
+	CivicNo         *string        `json:"civicNo,omitempty"`
+	SecurityMarking *bool          `json:"securityMarking,omitempty"`
+	UserRelations   []UserRelation `json:"userRelations,omitempty"`
 }
 
 // User is an SS12000:2018 user
