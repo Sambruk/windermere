@@ -256,7 +256,7 @@ func run(signals chan os.Signal, done chan bool) {
 		// Create the HTTP server
 		fedtlsServer = &http.Server{
 			// Wrap the HTTP handler with authentication middleware.
-			Handler: server.AuthMiddleware(handler, mdstore),
+			Handler: server.AuthMiddleware(handler, mdstore, nil),
 
 			// In order to use the authentication middleware, the server needs
 			// to have a ConnContext configured so the middleware can access

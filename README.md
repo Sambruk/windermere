@@ -13,7 +13,7 @@ Before getting started you need a few things:
  * A certificate to use in PEM format
  * A configuration file for Windermere
 
-You can find the URL and public keys for Moa (previously Kontosynk) at [Kontosynk](https://www.skolfederation.se/teknisk-information/moa/tekniska-miljoer/)
+You can find the URL and public keys for Moa (previously Kontosynk) at [Skolfederation's wiki](https://www.skolfederation.se/teknisk-information/moa/tekniska-miljoer/)
 
 A certificate can be generated with OpenSSL, for instance:
 
@@ -86,6 +86,8 @@ Example for MySQL/MariaDB:
 
 To build Windermere, go into the directory `cmd/windermere` and run `go build`,
 this should give you an executable named `windermere` in the same directory.
+
+If you don't want to build yourself you can find binaries on GitHub (under Releases).
 
 ### Running
 
