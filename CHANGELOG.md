@@ -1,6 +1,6 @@
 ## Releases
 
-## Unreleased
+## v1.2.0 (2024-09-16)
 #### Features
   - Windermere can run as a Windows service (#18)
 
