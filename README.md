@@ -229,3 +229,5 @@ error for services). Use the `LogPath` setting in your config file:
 ```
 LogPath: c:/windermere/log.txt
 ```
+Note that if you use this when installing or uninstalling the service, any error
+messages from installing or uninstalling will also end up in the log file.
