@@ -8,7 +8,7 @@ provider.
 
 Before getting started you need a few things:
 
- * A host with the Go compiler installed (v1.16 or later)
+ * A machine running Linux or Windows Server (other systems probably work as well but you will then need to build the program from source code)
  * URL and public keys to the authentication federation
  * A certificate to use in PEM format
  * A configuration file for Windermere
@@ -82,9 +82,15 @@ Example for MySQL/MariaDB:
 `multiStatements=true` is currently needed for this driver
 (other drivers allow this by default).
 
+### Binaries
+
+Compiled versions of the software is available for Linux and Windows here on GitHub (under Releases).
+
+If you wish to build the software from source code yourself, see below.
+
 ### Building
 
-To build Windermere, go into the directory `cmd/windermere` and run `go build`,
+To build Windermere you need a Go compiler. Once you have that, go into the directory `cmd/windermere` and run `go build`,
 this should give you an executable named `windermere` in the same directory.
 
 If you don't want to build yourself you can find binaries on GitHub (under Releases).
