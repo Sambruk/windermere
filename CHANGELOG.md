@@ -1,5 +1,13 @@
 ## Releases
 
+## v1.2.0 (2024-09-16)
+#### Features
+  - Windermere can run as a Windows service (#18)
+
+## v1.1.0 (2024-09-09)
+  - The User type now supports securityMarking (#36)
+    This attribute is not supported by the SQL backend at the moment.
+
 ## v1.0.2 (2024-02-28)
   Upgrades dependencies due to security alerts (GitHub dependabot).
 
