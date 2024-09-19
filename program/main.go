@@ -17,7 +17,7 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package main
+package program
 
 import (
 	"context"
@@ -36,9 +36,52 @@ import (
 	"github.com/Sambruk/windermere/windermere"
 	"github.com/joesiltberg/bowness/fedtls"
 	"github.com/joesiltberg/bowness/server"
+	"github.com/kardianos/service"
 	"github.com/spf13/viper"
 	"golang.org/x/time/rate"
 )
+
+type Extension interface {
+	ParametersOfInterest() []string
+	Start(parameters map[string]interface{}, w *windermere.Windermere)
+	Stop()
+}
+
+// Windermere can be run in interactive mode as a regular executable,
+// or as a service. The code below is used when using the program as
+// a service.
+
+const serviceName = "windermere"
+const serviceDescription = "Windermere EGIL SCIM Server"
+
+// This implements service.Interface (in the kardianos/service package)
+type serviceInterface struct {
+	// The program will wait for signals on this channel before shutting down.
+	// When running as a regular interactive program, we will connect SIGINT
+	// and SIGTERM to this channel. When running as a service, the Stop function
+	// below will be called by the service package and manually send a signal
+	// to this channel.
+	signals chan os.Signal
+
+	// When running as a service, the process will send to this channel to signal
+	// when proper shutdown is complete.
+	done chan bool
+
+	extension Extension
+}
+
+func (si serviceInterface) Start(s service.Service) error {
+	go run(si.signals, si.done, si.extension)
+	return nil
+}
+
+func (si serviceInterface) Stop(s service.Service) error {
+	// When running as a service, the service package takes care of
+	// signals, so we'll emulate a SIGINT sent to the process.
+	si.signals <- syscall.SIGINT
+	<-si.done
+	return nil
+}
 
 func must(err error) {
 	if err != nil {
@@ -62,10 +105,7 @@ func configuredSeconds(setting string) time.Duration {
 }
 
 // Blocks until we get a signal to shut down
-func waitForShutdownSignal() {
-	signals := make(chan os.Signal)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-
+func waitForShutdownSignal(signals chan os.Signal) {
 	<-signals
 }
 
@@ -99,6 +139,7 @@ const (
 	CNFMDOrganizationID          = "MetadataOrganizationID"
 	CNFValidateUUID              = "ValidateUUID"
 	CNFValidateSchoolUnitCode    = "ValidateSchoolUnitCode"
+	CNFLogFilePath               = "LogPath"
 	CNFSkolsynkListenAddress     = "SkolsynkListenAddress"
 	CNFSkolsynkAuthHeader        = "SkolsynkAuthHeader"
 	CNFSkolsynkCert              = "SkolsynkCert"
@@ -149,57 +190,21 @@ func parseClients(value interface{}) (map[string]string, error) {
 	return res, nil
 }
 
-func main() {
-	// Configuration defaults
-	defaults := map[string]interface{}{
-		CNFMDURL:                     "https://fed.skolfederation.se/prod/md/kontosynk.jws",
-		CNFMDDefaultCacheTTL:         3600,
-		CNFMDNetworkRetry:            60,
-		CNFMDBadContentRetry:         3600,
-		CNFReadHeaderTimeout:         5,
-		CNFReadTimeout:               20,
-		CNFWriteTimeout:              40,
-		CNFIdleTimeout:               60,
-		CNFBackendTimeout:            30,
-		CNFEnableLimiting:            false,
-		CNFLimitRequestsPerSecond:    10.0,
-		CNFLimitBurst:                50,
-		CNFStorageType:               "file",
-		CNFStorageSource:             "SS12000.json",
-		CNFAccessLogPath:             "",
-		CNFAdminListenAddress:        "",
-		CNFAdminCSRFSecret:           "",
-		CNFValidateUUID:              true,
-		CNFValidateSchoolUnitCode:    true,
-		CNFSkolsynkAuthHeader:        "X-API-Key",
-		CNFSS12000v2ImportConfigPath: "",
+func getViperParameters(parameters []string) map[string]interface{} {
+	result := make(map[string]interface{})
+	for _, p := range parameters {
+		if viper.IsSet(p) {
+			result[p] = viper.Get(p)
+		}
 	}
-	for key, value := range defaults {
-		viper.SetDefault(key, value)
-	}
-	flag.Parse()
+	return result
+}
 
-	if flag.NArg() < 1 {
-		log.Fatal("Missing configuration file path")
-	}
-
-	configPath := flag.Arg(0)
-
-	viper.SetConfigFile(configPath)
-
-	must(viper.ReadInConfig())
-
-	verifyRequired(CNFCert, CNFKey)
-
-	if viper.IsSet(CNFListenAddress) {
-		verifyRequired(CNFJWKSPath, CNFMDCachePath,
-			CNFMDEntityID, CNFMDBaseURI, CNFMDOrganization, CNFMDOrganizationID)
-	} else if viper.IsSet(CNFSkolsynkListenAddress) {
-		verifyRequired(CNFSkolsynkClients)
-	} else {
-		log.Fatalf("No listen address configured (configure at least one of %s or %s", CNFListenAddress, CNFSkolsynkListenAddress)
-	}
-
+// This is like the programs core main function. The actual main()
+// will take care of parsing arguments and behaves a bit differently
+// depending on whether we're running interactively, as a service,
+// or if we're installing/uninstalling a service.
+func run(signals chan os.Signal, done chan bool, extension Extension) {
 	certFile := viper.GetString(CNFCert)
 	keyFile := viper.GetString(CNFKey)
 
@@ -272,7 +277,7 @@ func main() {
 		// Create the HTTP server
 		fedtlsServer = &http.Server{
 			// Wrap the HTTP handler with authentication middleware.
-			Handler: server.AuthMiddleware(handler, mdstore),
+			Handler: server.AuthMiddleware(handler, mdstore, nil),
 
 			// In order to use the authentication middleware, the server needs
 			// to have a ConnContext configured so the middleware can access
@@ -392,7 +397,12 @@ func main() {
 		http.Handle("/ss12000v2_import_config/", http.StripPrefix("/ss12000v2_import_config", configurationHandler))
 	}
 
-	waitForShutdownSignal()
+	if extension != nil {
+		extensionParameters := getViperParameters(extension.ParametersOfInterest())
+		extension.Start(extensionParameters, wind)
+	}
+
+	waitForShutdownSignal(signals)
 
 	log.Printf("Shutting down, waiting for active requests to finish...")
 
@@ -415,6 +425,10 @@ func main() {
 		importManager.Quit()
 	}
 
+	if extension != nil {
+		extension.Stop()
+	}
+
 	err = wind.Shutdown()
 	if err != nil {
 		log.Printf("Failed to gracefully shutdown Windermere: %v", err)
@@ -426,4 +440,129 @@ func main() {
 	}
 
 	log.Printf("Done.")
+
+	if done != nil {
+		done <- true
+	}
+}
+
+func Main(ext Extension) {
+	// Configuration defaults
+	defaults := map[string]interface{}{
+		CNFMDURL:                     "https://fed.skolfederation.se/prod/md/kontosynk.jws",
+		CNFMDDefaultCacheTTL:         3600,
+		CNFMDNetworkRetry:            60,
+		CNFMDBadContentRetry:         3600,
+		CNFReadHeaderTimeout:         5,
+		CNFReadTimeout:               20,
+		CNFWriteTimeout:              40,
+		CNFIdleTimeout:               60,
+		CNFBackendTimeout:            30,
+		CNFEnableLimiting:            false,
+		CNFLimitRequestsPerSecond:    10.0,
+		CNFLimitBurst:                50,
+		CNFStorageType:               "file",
+		CNFStorageSource:             "SS12000.json",
+		CNFAccessLogPath:             "",
+		CNFAdminListenAddress:        "",
+		CNFAdminCSRFSecret:           "",
+		CNFValidateUUID:              true,
+		CNFValidateSchoolUnitCode:    true,
+		CNFSkolsynkAuthHeader:        "X-API-Key",
+		CNFSS12000v2ImportConfigPath: "",
+	}
+	for key, value := range defaults {
+		viper.SetDefault(key, value)
+	}
+
+	// Parse command line
+	var install = flag.Bool("install", false, "install as a service")
+	var uninstall = flag.Bool("uninstall", false, "uninstall as a service")
+	var serviceUser = flag.String("user", "", "user to run the service")
+	var servicePassword = flag.String("password", "", "password for service user")
+
+	flag.Parse()
+
+	if flag.NArg() < 1 {
+		log.Fatal("Missing configuration file path")
+	}
+
+	configPath := flag.Arg(0)
+
+	viper.SetConfigFile(configPath)
+
+	must(viper.ReadInConfig())
+
+	if viper.IsSet(CNFLogFilePath) {
+		f, err := os.OpenFile(viper.GetString(CNFLogFilePath), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			log.Fatalf("error opening file: %v", err)
+		}
+		defer f.Close()
+		log.SetOutput(f)
+	}
+
+	verifyRequired(CNFCert, CNFKey)
+
+	if viper.IsSet(CNFListenAddress) {
+		verifyRequired(CNFJWKSPath, CNFMDCachePath,
+			CNFMDEntityID, CNFMDBaseURI, CNFMDOrganization, CNFMDOrganizationID)
+	} else if viper.IsSet(CNFSkolsynkListenAddress) {
+		verifyRequired(CNFSkolsynkClients)
+	} else {
+		log.Fatalf("No listen address configured (configure at least one of %s or %s", CNFListenAddress, CNFSkolsynkListenAddress)
+	}
+
+	// The main goroutine will wait for signals on this channel before
+	// terminating.
+	sigs := make(chan os.Signal)
+
+	// Extra (system-dependent) service options
+	opts := make(service.KeyValue)
+
+	if *servicePassword != "" {
+		opts["Password"] = *servicePassword
+	}
+
+	// Set up the service, not necessarily used if we're running
+	// the program as a regular interactive service.
+	serviceConfig := &service.Config{
+		Name:        serviceName,
+		DisplayName: serviceName,
+		Description: serviceDescription,
+		Arguments:   flag.Args(),
+		UserName:    *serviceUser,
+		Option:      opts,
+	}
+	si := &serviceInterface{signals: sigs, done: make(chan bool), extension: ext}
+	s, err := service.New(si, serviceConfig)
+	if err != nil {
+		log.Fatalf("Cannot create the service: %s", err.Error())
+	}
+
+	// Run the program in different ways depending on whether we're
+	// being called from a service manager or not, and whether we're
+	// trying to install/uninstall the program as a service.
+	if service.Interactive() {
+		if *install {
+			err = s.Install()
+			if err != nil {
+				log.Fatalf("Cannot install the service: %s", err.Error())
+			}
+		} else if *uninstall {
+			err = s.Uninstall()
+			if err != nil {
+				log.Fatalf("Cannot uninstall the service: %s", err.Error())
+			}
+		} else {
+			// Don't use the service, just run directly so Ctrl-C works
+			signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+			run(sigs, nil, ext)
+		}
+	} else {
+		err = s.Run()
+		if err != nil {
+			log.Fatalf("Cannot start the service: %s", err.Error())
+		}
+	}
 }

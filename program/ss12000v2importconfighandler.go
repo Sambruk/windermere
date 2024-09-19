@@ -1,6 +1,6 @@
 // This file contains the HTTP handler for configuring the SS12000 v2 imports
 
-package main
+package program
 
 import (
 	"crypto/sha256"
