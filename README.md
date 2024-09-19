@@ -8,12 +8,12 @@ provider.
 
 Before getting started you need a few things:
 
- * A host with the Go compiler installed (v1.16 or later)
+ * A machine running Linux or Windows Server (other systems probably work as well but you will then need to build the program from source code)
  * URL and public keys to the authentication federation
  * A certificate to use in PEM format
  * A configuration file for Windermere
 
-You can find the URL and public keys for Moa (previously Kontosynk) at [Kontosynk](https://www.skolfederation.se/teknisk-information/moa/tekniska-miljoer/)
+You can find the URL and public keys for Moa (previously Kontosynk) at [Skolfederation's wiki](https://www.skolfederation.se/teknisk-information/moa/tekniska-miljoer/)
 
 A certificate can be generated with OpenSSL, for instance:
 
@@ -82,10 +82,18 @@ Example for MySQL/MariaDB:
 `multiStatements=true` is currently needed for this driver
 (other drivers allow this by default).
 
+### Binaries
+
+Compiled versions of the software is available for Linux and Windows here on GitHub (under Releases).
+
+If you wish to build the software from source code yourself, see below.
+
 ### Building
 
-To build Windermere, go into the directory `cmd/windermere` and run `go build`,
+To build Windermere you need a Go compiler. Once you have that, go into the directory `cmd/windermere` and run `go build`,
 this should give you an executable named `windermere` in the same directory.
+
+If you don't want to build yourself you can find binaries on GitHub (under Releases).
 
 ### Running
 
@@ -211,3 +219,43 @@ The settings for `-storagetype` and `-storagesource` should be the same as the o
 in your `config.yaml`.
 
 Make sure Windermere isn't running while the downgrade is performed.
+
+## Running as a service
+
+Windermere can run as a regular command line program, or as a service.
+
+For Linux, there's an example systemd service definition [here](configs/windermere.service).
+
+For Windows, the service can be installed by running the program with `-install`:
+
+```
+windermere -install c:\windermere\config.yaml
+```
+
+You can remove the service with the `-uninstall` flag.
+
+If you wish you can also specify user and password for the service:
+
+```
+windermere -install -user ben -password verysecret c:\windermere\config.yaml
+```
+
+Note that the path to the config file should be absolute when you install the
+service since the process might not start from the same directory when running
+as a service. You may also want to make sure the paths inside the config file
+are absolute for the same reason.
+
+If you don't want to specify password on the command line you can configure that
+in the Windows Service Manager instead.
+
+### Logging
+
+If you're running Windermere as a service you may want to send logging to a file
+(depending on what your operating system does with standard output and standard
+error for services). Use the `LogPath` setting in your config file:
+
+```
+LogPath: c:/windermere/log.txt
+```
+Note that if you use this when installing or uninstalling the service, any error
+messages from installing or uninstalling will also end up in the log file.
