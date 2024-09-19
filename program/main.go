@@ -17,7 +17,7 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package main
+package program
 
 import (
 	"context"
@@ -40,6 +40,12 @@ import (
 	"golang.org/x/time/rate"
 )
 
+type Extension interface {
+	ParametersOfInterest() []string
+	Start(parameters map[string]interface{}, w *windermere.Windermere)
+	Stop()
+}
+
 // Windermere can be run in interactive mode as a regular executable,
 // or as a service. The code below is used when using the program as
 // a service.
@@ -59,10 +65,12 @@ type serviceInterface struct {
 	// When running as a service, the process will send to this channel to signal
 	// when proper shutdown is complete.
 	done chan bool
+
+	extension Extension
 }
 
 func (si serviceInterface) Start(s service.Service) error {
-	go run(si.signals, si.done)
+	go run(si.signals, si.done, si.extension)
 	return nil
 }
 
@@ -179,11 +187,21 @@ func parseClients(value interface{}) (map[string]string, error) {
 	return res, nil
 }
 
+func getViperParameters(parameters []string) map[string]interface{} {
+	result := make(map[string]interface{})
+	for _, p := range parameters {
+		if viper.IsSet(p) {
+			result[p] = viper.Get(p)
+		}
+	}
+	return result
+}
+
 // This is like the programs core main function. The actual main()
 // will take care of parsing arguments and behaves a bit differently
 // depending on whether we're running interactively, as a service,
 // or if we're installing/uninstalling a service.
-func run(signals chan os.Signal, done chan bool) {
+func run(signals chan os.Signal, done chan bool, extension Extension) {
 	certFile := viper.GetString(CNFCert)
 	keyFile := viper.GetString(CNFKey)
 
@@ -341,6 +359,11 @@ func run(signals chan os.Signal, done chan bool) {
 		}()
 	}
 
+	if extension != nil {
+		extensionParameters := getViperParameters(extension.ParametersOfInterest())
+		extension.Start(extensionParameters, wind)
+	}
+
 	waitForShutdownSignal(signals)
 
 	log.Printf("Shutting down, waiting for active requests to finish...")
@@ -357,6 +380,10 @@ func run(signals chan os.Signal, done chan bool) {
 		if err != nil {
 			log.Printf("Failed to gracefully shutdown Skolsynk server: %v", err)
 		}
+	}
+
+	if extension != nil {
+		extension.Stop()
 	}
 
 	err = wind.Shutdown()
@@ -376,7 +403,7 @@ func run(signals chan os.Signal, done chan bool) {
 	}
 }
 
-func main() {
+func Main(ext Extension) {
 	// Configuration defaults
 	defaults := map[string]interface{}{
 		CNFMDURL:                  "https://fed.skolfederation.se/prod/md/kontosynk.jws",
@@ -462,7 +489,7 @@ func main() {
 		UserName:    *serviceUser,
 		Option:      opts,
 	}
-	si := &serviceInterface{signals: sigs, done: make(chan bool)}
+	si := &serviceInterface{signals: sigs, done: make(chan bool), extension: ext}
 	s, err := service.New(si, serviceConfig)
 	if err != nil {
 		log.Fatalf("Cannot create the service: %s", err.Error())
@@ -485,7 +512,7 @@ func main() {
 		} else {
 			// Don't use the service, just run directly so Ctrl-C works
 			signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-			run(sigs, nil)
+			run(sigs, nil, ext)
 		}
 	} else {
 		err = s.Run()
