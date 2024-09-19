@@ -6,7 +6,7 @@
   </head>
   <body>
     <div>
-        <form action="edit" method="post" id="edit-import-form">
+        <form action={{if .add}}"add"{{else}}"edit"{{end}} method="post" id="edit-import-form">
             {{ $.csrfField }}
             <div class="edit-import-form-propery" id="edit-import-form-tenant-div">
                 <div class="edit-import-property-heading">Tenant</div>
