@@ -1,5 +1,8 @@
 ## Releases
 
+## v1.2.1 (2024-09-19)
+  - Re-usable and extendable main package (#39)
+
 ## v1.2.0 (2024-09-16)
 #### Features
   - Windermere can run as a Windows service (#18)
