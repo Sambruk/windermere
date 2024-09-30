@@ -1,5 +1,8 @@
 ## Releases
 
+## Unreleased
+  - Golang upgraded to v1.22 (#42)
+
 ## v1.2.1 (2024-09-19)
   - Re-usable and extendable main package (#39)
 
