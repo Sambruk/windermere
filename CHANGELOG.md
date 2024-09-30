@@ -1,6 +1,6 @@
 ## Releases
 
-## Unreleased
+## v1.2.2 (2024-09-30)
   - Golang upgraded to v1.22 (#42)
 
 ## v1.2.1 (2024-09-19)
