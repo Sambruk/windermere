@@ -1,5 +1,11 @@
 ## Releases
 
+## v1.2.3 (2025-01-07)
+  - Bowness upgraded to v1.1.4
+    This was due to a security alert by GitHub dependabot. The security
+    issue doesn't seem to affect Bowness or Windermere (see bowness repository
+    for details).
+
 ## v1.2.2 (2024-09-30)
   - Golang upgraded to v1.22 (#42)
 
