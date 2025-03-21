@@ -106,6 +106,19 @@ $ windermere config.yaml
 
 Specify the full path to the binary unless you've added it to your `$PATH`.
 
+### Docker
+
+If you'd prefer to run Windermere as a container there's a Dockerfile available. The
+container will assume a directory is mounted as a volume under `/workdir` and that
+there's a config.yaml file in that directory. You can place all necessary files (such as
+certificate files and keys to metadata) in the same directory, just remember to
+modify your config.yaml so paths point to `/workdir`.
+
+If you prefer, the volume with configuration files can be mounted as read-only, just make sure
+then that your config.yaml specifies a `MetadataCachePath` that leads to a writable location
+(a different volume or `/tmp`). If you're using the SQLite storage backend that will of course also
+need a writable path. The same applies if you're using the settings for `AccessLogPath` or `LogPath`.
+
 ## Metadata to upload to the federation operator
 
 Before clients can connect to the server you need to upload your metadata
