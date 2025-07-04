@@ -13,11 +13,11 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-2019]
+        os: [ubuntu-latest, windows-2022]
         include:
         - os: ubuntu-latest
           binaryname: windermere
-        - os: windows-2019
+        - os: windows-2022
           binaryname: windermere.exe
     name: Build Windermere server binary 
     runs-on: ${{ matrix.os }}
