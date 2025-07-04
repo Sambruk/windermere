@@ -1,6 +1,6 @@
 ## Releases
 
-## Unreleased
+## 1.3.0 (2025-07-04)
   - New "dummy" backend with no memory (for testing purposes) (#46)
 
 ## v1.2.3 (2025-01-07)
