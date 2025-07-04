@@ -53,11 +53,11 @@ func New(backingType, backingSource string, tenantGetter scimserverlite.TenantGe
 	var b scimserverlite.Backend
 	parser := validatingObjectParser(v, objectParser)
 
+	// TODO: remove this untypedObjectParser once InMemory-backend and Dummy-backend are SS12000-aware
+	untypedObjectParser := func(resourceType, resource string) (interface{}, error) {
+		return parser(resourceType, resource)
+	}
 	if backingType == "file" {
-		// TODO: remove this untypedObjectParser once InMemory-backend is SS12000-aware
-		untypedObjectParser := func(resourceType, resource string) (interface{}, error) {
-			return parser(resourceType, resource)
-		}
 		inMemoryBackend := scimserverlite.NewInMemoryBackend(scimserverlite.CreateIDFromExternalID, untypedObjectParser)
 
 		err := loadSCIMBackend(inMemoryBackend, backingSource)
@@ -66,6 +66,9 @@ func New(backingType, backingSource string, tenantGetter scimserverlite.TenantGe
 			return nil, fmt.Errorf("failed to read SS12000 model from file: %v", err)
 		}
 		b = inMemoryBackend
+	} else if backingType == "dummy" {
+		dummyBackend := scimserverlite.NewDummyBackend(untypedObjectParser)
+		b = dummyBackend
 	} else {
 		db, err := sqlx.Open(backingType, backingSource)
 

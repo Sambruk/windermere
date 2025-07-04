@@ -1,5 +1,8 @@
 ## Releases
 
+## Unreleased
+  - New "dummy" backend with no memory (for testing purposes) (#46)
+
 ## v1.2.3 (2025-01-07)
   - Bowness upgraded to v1.1.4
     This was due to a security alert by GitHub dependabot. The security
