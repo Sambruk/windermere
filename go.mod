@@ -1,6 +1,6 @@
 module github.com/Sambruk/windermere
 
-go 1.23.0
+go 1.24.0
 
 toolchain go1.24.1
 
@@ -9,7 +9,7 @@ require (
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/google/renameio v1.0.1
 	github.com/jmoiron/sqlx v1.3.4
-	github.com/joesiltberg/bowness v1.1.5
+	github.com/joesiltberg/bowness v1.1.6
 	github.com/kardianos/service v1.2.1
 	github.com/spf13/viper v1.12.0
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11
@@ -42,12 +42,12 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.3.0 // indirect
-	golang.org/x/crypto v0.35.0 // indirect
-	golang.org/x/mod v0.17.0 // indirect
-	golang.org/x/sync v0.11.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
-	golang.org/x/text v0.22.0 // indirect
-	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
+	golang.org/x/crypto v0.45.0 // indirect
+	golang.org/x/mod v0.29.0 // indirect
+	golang.org/x/sync v0.18.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/tools v0.38.0 // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
