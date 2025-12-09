@@ -1,5 +1,11 @@
 ## Releases
 
+## 1.3.1 (2025-12-09)
+  - Bowness upgraded to v1.1.6
+    This was due to a security alert by GitHub dependabot. The security
+	issue doesn't seem to affect Bowness or Windermere (see bowness repository
+	for details).
+
 ## 1.3.0 (2025-07-04)
   - New "dummy" backend with no memory (for testing purposes) (#46)
 
