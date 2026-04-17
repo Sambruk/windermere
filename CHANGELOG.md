@@ -1,5 +1,12 @@
 ## Releases
 
+## 1.3.2 (2026-04-17)
+  - Bowness upgraded to v1.2.1. This was due to a security review of Bowness.
+    The security related findings in Bowness had to do with robustness and
+    denial-of-service attacks which could in theory be carried out if an
+    attacker was able to impersonate the federation operator (man-in-the-middle
+    attack). No remote code execution or authentication bypass was found.
+
 ## 1.3.1 (2025-12-09)
   - Bowness upgraded to v1.1.6
     This was due to a security alert by GitHub dependabot. The security
