@@ -143,8 +143,8 @@ github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:
 github.com/ianlancetaylor/demangle v0.0.0-20200824232613-28f6c0f3b639/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/jmoiron/sqlx v1.3.4 h1:wv+0IJZfL5z0uZoUjlpKgHkgaFSYD+r9CfrXjEXsO7w=
 github.com/jmoiron/sqlx v1.3.4/go.mod h1:2BljVx/86SuTyjE+aPYlHCTNvZrnJXghYGpNiXLBMCQ=
-github.com/joesiltberg/bowness v1.1.6 h1:l821+CDO28MCS6AhxZWb33bOoe/gsSpFbi8ElXKwNIs=
-github.com/joesiltberg/bowness v1.1.6/go.mod h1:L2IY80kbE7p7x0TIUT/W33QWY6yQWPI3JVeyvr7oa9Y=
+github.com/joesiltberg/bowness v1.2.1 h1:FZy6D8BageVn0YFoVEU+HqHClsxo1ACKO/KRH6lXezE=
+github.com/joesiltberg/bowness v1.2.1/go.mod h1:L2IY80kbE7p7x0TIUT/W33QWY6yQWPI3JVeyvr7oa9Y=
 github.com/jstemmer/go-junit-report v0.0.0-20190106144839-af01ea7f8024/go.mod h1:6v2b51hI/fHJwM22ozAgKL4VKDeJcHhJFhtBdhmNjmU=
 github.com/jstemmer/go-junit-report v0.9.1/go.mod h1:Brl9GWCQeLvo8nXZwPNNblvFj/XSXhF0NWZEnDohbsk=
 github.com/kardianos/service v1.2.1 h1:AYndMsehS+ywIS6RB9KOlcXzteWUzxgMgBymJD7+BYk=
