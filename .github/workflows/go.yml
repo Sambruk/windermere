@@ -22,12 +22,12 @@ jobs:
     name: Build Windermere server binary 
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v6
       with:
-        go-version: '1.23'
+        go-version: '1.26'
 
     - name: Build Windermere
       working-directory: ./cmd/windermere
