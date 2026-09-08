@@ -9,6 +9,7 @@ require (
 	github.com/jmoiron/sqlx v1.3.4
 	github.com/joesiltberg/bowness v1.2.2
 	github.com/kardianos/service v1.2.1
+	github.com/lib/pq v1.2.0
 	github.com/spf13/viper v1.12.0
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11
 	modernc.org/sqlite v1.14.3

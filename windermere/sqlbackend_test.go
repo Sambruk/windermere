@@ -1,20 +1,20 @@
 /*
- *  This file is part of Windermere (EGIL SCIM Server).
- *
- *  Copyright (C) 2019-2021 Föreningen Sambruk
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU Affero General Public License as
- *  published by the Free Software Foundation, either version 3 of the
- *  License, or (at your option) any later version.
+*  This file is part of Windermere (EGIL SCIM Server).
+*
+*  Copyright (C) 2019-2021 Föreningen Sambruk
+*
+*  This program is free software: you can redistribute it and/or modify
+*  it under the terms of the GNU Affero General Public License as
+*  published by the Free Software Foundation, either version 3 of the
+*  License, or (at your option) any later version.
 
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU Affero General Public License for more details.
+*  This program is distributed in the hope that it will be useful,
+*  but WITHOUT ANY WARRANTY; without even the implied warranty of
+*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*  GNU Affero General Public License for more details.
 
- *  You should have received a copy of the GNU Affero General Public License
- *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*  You should have received a copy of the GNU Affero General Public License
+*  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package windermere
 
@@ -22,6 +22,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 
@@ -50,11 +51,11 @@ var bajeJSON = `
 		"givenName": "Barbara"
 	},
 	"emails": [
-        
+
         {
-          "value": "baje@skolan.kommunen.se" 
-        } 
-        
+          "value": "baje@skolan.kommunen.se"
+        }
+
     ]
 }
 `
@@ -73,11 +74,11 @@ var bajeNewUserName = `
 		"givenName": "Barbara"
 	},
 	"emails": [
-        
+
         {
-          "value": "baje@skolan.kommunen.se" 
-        } 
-        
+          "value": "baje@skolan.kommunen.se"
+        }
+
     ]
 }
 `
@@ -94,11 +95,11 @@ var ananJSON = `
 		"givenName": "Anders"
 	},
 	"emails": [
-        
+
         {
-          "value": "anan@skolan.kommunen.se" 
-        } 
-        
+          "value": "anan@skolan.kommunen.se"
+        }
+
     ]
 }
 `
@@ -116,19 +117,19 @@ var liniJSON = `
 		"givenName": "Lisa"
 	},
 	"emails": [
-        
+
         {
-          "value": "lini@skolan.kommunen.se" 
-        } 
-        
+          "value": "lini@skolan.kommunen.se"
+        }
+
     ],
     "urn:scim:schemas:extension:sis:school:1.0:User": {
         "enrolments": [
-            
+
             {
                 "value": "8d371858-3fbd-4af2-ae33-84225ead4a1b",
 				"schoolYear": 4
-            } 
+            }
         ]
     }
 }
@@ -147,13 +148,13 @@ var grupp1JSON = `
 	  "value": "8d371858-3fbd-4af2-ae33-84225ead4a1b"
 	},
 	"studentMemberships": [
-	  
+
 	  {
 		"value": "aeb9dfad-c824-49e2-89d6-84cf5e33feef"
 	  },
 	  {
 		"value": "2b3a480f-d0b9-4c09-bbac-70f915964b02"
-	  } 
+	  }
 	]
 }
 `
@@ -226,15 +227,15 @@ var grupp2ActivityJSON = `
         "value": "645ebd9d-55b5-4e7a-900a-92b9369c8f6a"
     }],
     "teachers": [
-        
+
         {
             "value": "db405316-e9d1-50d2-89c5-776f91ac2c98"
         },
-        
+
         {
             "value": "163cbddb-9fd0-53df-81e4-e022c5dd5c71"
-        } 
-        
+        }
+
     ]
 }
 `
@@ -522,4 +523,23 @@ func TestValidation(t *testing.T) {
 	if !ok || scimError.Type() != scimserverlite.MalformedResourceError {
 		t.Errorf("wrong error, expected malformed resource, got: %v", err)
 	}
+}
+
+func testExpandSchema(driverName string, t *testing.T) {
+	keywords := []string{"NTEXT", "NVARCHAR"}
+	// So far there is only 1 migration
+	got := expandDriverSpecificTypes(driverName, getSchema(1))
+	for _, keyword := range keywords {
+		if strings.Contains(got, keyword) {
+			t.Errorf("Wrong schema conversion for postgres: %s found and it shouldn't be there", keyword)
+		}
+	}
+}
+
+func TestExpandDriverSpecificTypesPostgres(t *testing.T) {
+	testExpandSchema("postgres", t)
+}
+
+func TestExpandDriverSpecificTypesMysql(t *testing.T) {
+	testExpandSchema("mysql", t)
 }
