@@ -255,7 +255,7 @@ func expandDriverSpecificTypes(driverName, schema string) string {
 		// For MySQL we'll replace NTEXT and NVARCHAR with TEXT and VARCHAR
 		expander = func(schema string) string {
 			re := regexp.MustCompile(`{{N(.*?)}}`)
-			return removeCurlies(string(re.ReplaceAll([]byte(schema), []byte("$1"))))
+			return string(re.ReplaceAll([]byte(schema), []byte("$1")))
 		}
 	}
 	return expander(schema)
