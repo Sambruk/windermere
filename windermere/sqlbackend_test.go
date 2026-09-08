@@ -261,10 +261,16 @@ type sqltestfixture struct {
 	db *sqlx.DB
 }
 
-func startTest(t *testing.T) *sqltestfixture {
+func startTest(t *testing.T, driver string, dsn string) *sqltestfixture {
 	initOnce.Do(initTestData)
 	var f sqltestfixture
-	db, err := sqlx.Open("sqlite", ":memory:")
+	if driver == "" {
+		driver = "sqlite"
+	}
+	if dsn == "" {
+		dsn = ":memory:"
+	}
+	db, err := sqlx.Open(driver, dsn)
 	test.Ensure(t, err)
 	parser := validatingObjectParser(CreateOptionalValidator(true, true), objectParser)
 	b, err := NewSQLBackend(db, parser)
@@ -274,8 +280,12 @@ func startTest(t *testing.T) *sqltestfixture {
 	return &f
 }
 
+func startSqliteTest(t *testing.T) *sqltestfixture {
+	return startTest(t, "", "")
+}
+
 func TestCreate(t *testing.T) {
-	f := startTest(t)
+	f := startSqliteTest(t)
 	_, err := f.b.Create(tenant1, "Users", bajeJSON)
 	test.Ensure(t, err)
 	_, err = f.b.Create(tenant1, "Users", bajeJSON)
@@ -291,7 +301,7 @@ func TestCreate(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
-	f := startTest(t)
+	f := startSqliteTest(t)
 	_, err := f.b.Create(tenant1, "Users", bajeJSON)
 	test.Ensure(t, err)
 
@@ -306,7 +316,7 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	f := startTest(t)
+	f := startSqliteTest(t)
 	err := f.b.Delete(tenant1, "Users", baje.GetID())
 	test.MustFail(t, err)
 	_, err = f.b.Create(tenant1, "Users", bajeJSON)
@@ -320,7 +330,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestClear(t *testing.T) {
-	f := startTest(t)
+	f := startSqliteTest(t)
 	_, err := f.b.Create(tenant1, "Users", bajeJSON)
 	test.Ensure(t, err)
 	test.Ensure(t, f.b.Clear(tenant1))
@@ -336,7 +346,7 @@ func TestClear(t *testing.T) {
 }
 
 func TestGetParsedResource(t *testing.T) {
-	f := startTest(t)
+	f := startSqliteTest(t)
 	_, err := f.b.Create(tenant1, "Users", bajeJSON)
 	test.Ensure(t, err)
 	obj, err := f.b.GetParsedResource(tenant1, "Users", baje.GetID())
@@ -371,7 +381,7 @@ func TestGetParsedResource(t *testing.T) {
 }
 
 func TestGetParsedResources(t *testing.T) {
-	f := startTest(t)
+	f := startSqliteTest(t)
 	users, err := f.b.GetParsedResources(tenant1, "Users")
 	test.Ensure(t, err)
 	if len(users) != 0 {
@@ -407,7 +417,7 @@ func TestGetParsedResources(t *testing.T) {
 }
 
 func TestGetResource(t *testing.T) {
-	f := startTest(t)
+	f := startSqliteTest(t)
 	_, err := f.b.Create(tenant1, "Users", bajeJSON)
 	test.Ensure(t, err)
 	str, err := f.b.GetResource(tenant1, "Users", baje.GetID())
@@ -421,7 +431,7 @@ func TestGetResource(t *testing.T) {
 }
 
 func TestDeleteCascade(t *testing.T) {
-	f := startTest(t)
+	f := startSqliteTest(t)
 	_, err := f.b.Create(tenant1, "Users", liniJSON)
 	test.Ensure(t, err)
 	err = f.b.Delete(tenant1, "Users", lini.GetID())
@@ -436,7 +446,7 @@ func TestDeleteCascade(t *testing.T) {
 }
 
 func TestIdentity(t *testing.T) {
-	f := startTest(t)
+	f := startSqliteTest(t)
 
 	roundTrip := func(tenant, resourceType, json, id string, want ss12000v1.Object, create bool) {
 		var err error
@@ -485,7 +495,7 @@ func TestIdentity(t *testing.T) {
 }
 
 func TestValidation(t *testing.T) {
-	f := startTest(t)
+	f := startSqliteTest(t)
 	badUUID := `
 	{
 		"schemas": ["urn:scim:schemas:extension:sis:school:1.0:Organisation"],
