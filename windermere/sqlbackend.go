@@ -252,11 +252,18 @@ func expandDriverSpecificTypes(driverName, schema string) string {
 	expander := removeCurlies
 
 	if driverName == "mysql" || driverName == "postgres" {
-		// For MySQL we'll replace NTEXT and NVARCHAR with TEXT and VARCHAR
+		// For MySQL and postgres we'll replace NTEXT and NVARCHAR with TEXT and VARCHAR
+		// For Postgres we also replace tinyint into smallint
 		expander = func(schema string) string {
 			re := regexp.MustCompile(`{{N(.*?)}}`)
-			return string(re.ReplaceAll([]byte(schema), []byte("$1")))
+			s1 := string(re.ReplaceAll([]byte(schema), []byte("$1")))
+			if driverName == "postgres" {
+				re = regexp.MustCompile("TINYINT")
+				s1 = string(re.ReplaceAll([]byte(s1), []byte("SMALLINT")))
+			}
+			return s1
 		}
+
 	}
 	return expander(schema)
 }
