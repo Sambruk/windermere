@@ -251,7 +251,7 @@ func expandDriverSpecificTypes(driverName, schema string) string {
 	// Default expansion simply removes curly brackets
 	expander := removeCurlies
 
-	if driverName == "mysql" {
+	if driverName == "mysql" || driverName == "postgres" {
 		// For MySQL we'll replace NTEXT and NVARCHAR with TEXT and VARCHAR
 		expander = func(schema string) string {
 			re := regexp.MustCompile(`{{N(.*?)}}`)
