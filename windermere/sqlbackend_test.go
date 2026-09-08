@@ -21,6 +21,8 @@ package windermere
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
+	"os"
 	"reflect"
 	"strings"
 	"sync"
@@ -284,219 +286,247 @@ func startSqliteTest(t *testing.T) *sqltestfixture {
 	return startTest(t, "", "")
 }
 
-func TestCreate(t *testing.T) {
-	f := startSqliteTest(t)
-	_, err := f.b.Create(tenant1, "Users", bajeJSON)
-	test.Ensure(t, err)
-	_, err = f.b.Create(tenant1, "Users", bajeJSON)
-	test.MustFail(t, err)
-	scimError, ok := err.(scimserverlite.SCIMTypedError)
-	if !ok || scimError.Type() != scimserverlite.ConflictError {
-		t.Errorf("wrong error, expected conflict, got: %v", err)
+func sqlDriverTest(t *testing.T, test func(t *testing.T, sqlTestFixture *sqltestfixture)) {
+	driversToTestEnv := os.Getenv("WINDERMERE_TEST_DB_DRIVERS")
+	driversToTest := [][]string{}
+	if driversToTestEnv == "" {
+		driversToTest = [][]string{{"sqlite", ":memory:"}}
 	}
-	_, err = f.b.Create(tenant1, "Users", ananJSON)
-	test.Ensure(t, err)
-	_, err = f.b.Create(tenant2, "Users", bajeJSON)
-	test.Ensure(t, err)
+	for _, driver := range driversToTest {
+		if len(driver) != 2 {
+			log.Printf("Unknown driver to test %s", strings.Join(driver, " | "))
+			continue
+		}
+		driverName := driver[0]
+		dsn := driver[1]
+		t.Run(driverName, func(t *testing.T) {
+			t.Parallel()
+			test(t, startTest(t, driverName, dsn))
+		})
+	}
+}
+
+func TestCreate(t *testing.T) {
+	sqlDriverTest(t, func(t *testing.T, f *sqltestfixture) {
+		_, err := f.b.Create(tenant1, "Users", bajeJSON)
+		test.Ensure(t, err)
+		_, err = f.b.Create(tenant1, "Users", bajeJSON)
+		test.MustFail(t, err)
+		scimError, ok := err.(scimserverlite.SCIMTypedError)
+		if !ok || scimError.Type() != scimserverlite.ConflictError {
+			t.Errorf("wrong error, expected conflict, got: %v", err)
+		}
+		_, err = f.b.Create(tenant1, "Users", ananJSON)
+		test.Ensure(t, err)
+		_, err = f.b.Create(tenant2, "Users", bajeJSON)
+		test.Ensure(t, err)
+	})
 }
 
 func TestUpdate(t *testing.T) {
-	f := startSqliteTest(t)
-	_, err := f.b.Create(tenant1, "Users", bajeJSON)
-	test.Ensure(t, err)
+	sqlDriverTest(t, func(t *testing.T, f *sqltestfixture) {
+		_, err := f.b.Create(tenant1, "Users", bajeJSON)
+		test.Ensure(t, err)
 
-	_, err = f.b.Update(tenant1, "Users", baje.GetID(), bajeNewUserName)
-	test.Ensure(t, err)
-	_, err = f.b.Update(tenant2, "Users", baje.GetID(), bajeJSON)
-	test.MustFail(t, err)
-	scimError, ok := err.(scimserverlite.SCIMTypedError)
-	if !ok || scimError.Type() != scimserverlite.MissingResourceError {
-		t.Errorf("wrong error, expected conflict, got: %v", err)
-	}
+		_, err = f.b.Update(tenant1, "Users", baje.GetID(), bajeNewUserName)
+		test.Ensure(t, err)
+		_, err = f.b.Update(tenant2, "Users", baje.GetID(), bajeJSON)
+		test.MustFail(t, err)
+		scimError, ok := err.(scimserverlite.SCIMTypedError)
+		if !ok || scimError.Type() != scimserverlite.MissingResourceError {
+			t.Errorf("wrong error, expected conflict, got: %v", err)
+		}
+	})
 }
 
 func TestDelete(t *testing.T) {
-	f := startSqliteTest(t)
-	err := f.b.Delete(tenant1, "Users", baje.GetID())
-	test.MustFail(t, err)
-	_, err = f.b.Create(tenant1, "Users", bajeJSON)
-	test.Ensure(t, err)
-	err = f.b.Delete(tenant1, "Users", baje.GetID())
-	test.Ensure(t, err)
-	_, err = f.b.Create(tenant1, "Users", bajeJSON)
-	test.Ensure(t, err)
-	err = f.b.Delete(tenant2, "Users", baje.GetID())
-	test.MustFail(t, err)
+	sqlDriverTest(t, func(t *testing.T, f *sqltestfixture) {
+		err := f.b.Delete(tenant1, "Users", baje.GetID())
+		test.MustFail(t, err)
+		_, err = f.b.Create(tenant1, "Users", bajeJSON)
+		test.Ensure(t, err)
+		err = f.b.Delete(tenant1, "Users", baje.GetID())
+		test.Ensure(t, err)
+		_, err = f.b.Create(tenant1, "Users", bajeJSON)
+		test.Ensure(t, err)
+		err = f.b.Delete(tenant2, "Users", baje.GetID())
+		test.MustFail(t, err)
+	})
 }
 
 func TestClear(t *testing.T) {
-	f := startSqliteTest(t)
-	_, err := f.b.Create(tenant1, "Users", bajeJSON)
-	test.Ensure(t, err)
-	test.Ensure(t, f.b.Clear(tenant1))
-	_, err = f.b.Create(tenant1, "Users", bajeJSON)
-	test.Ensure(t, err)
-	_, err = f.b.Create(tenant2, "Users", bajeJSON)
-	test.Ensure(t, err)
-	test.Ensure(t, f.b.Clear(tenant1))
-	_, err = f.b.Create(tenant1, "Users", bajeJSON)
-	test.Ensure(t, err)
-	_, err = f.b.Create(tenant2, "Users", bajeJSON)
-	test.MustFail(t, err)
+	sqlDriverTest(t, func(t *testing.T, f *sqltestfixture) {
+		_, err := f.b.Create(tenant1, "Users", bajeJSON)
+		test.Ensure(t, err)
+		test.Ensure(t, f.b.Clear(tenant1))
+		_, err = f.b.Create(tenant1, "Users", bajeJSON)
+		test.Ensure(t, err)
+		_, err = f.b.Create(tenant2, "Users", bajeJSON)
+		test.Ensure(t, err)
+		test.Ensure(t, f.b.Clear(tenant1))
+		_, err = f.b.Create(tenant1, "Users", bajeJSON)
+		test.Ensure(t, err)
+		_, err = f.b.Create(tenant2, "Users", bajeJSON)
+		test.MustFail(t, err)
+	})
 }
 
 func TestGetParsedResource(t *testing.T) {
-	f := startSqliteTest(t)
-	_, err := f.b.Create(tenant1, "Users", bajeJSON)
-	test.Ensure(t, err)
-	obj, err := f.b.GetParsedResource(tenant1, "Users", baje.GetID())
-	test.Ensure(t, err)
-	if obj == nil {
-		t.Fatalf("Expected valid object from GetParsedResource, got nil")
-	}
-	user, ok := obj.(*ss12000v1.User)
-	if !ok {
-		t.Fatalf("Wrong type of object returned from GetParsedResource, expected User, got %T", obj)
-	}
-	if user.GetID() != baje.GetID() {
-		t.Errorf("GetParsedResource returned user with unexpected ID: %s", user.GetID())
-	}
-	if user.UserName != "baje@skola.kommunen.se" {
-		t.Errorf("GetParsedResource returned user with unexpected UserName: %s", user.UserName)
-	}
-	_, err = f.b.Update(tenant1, "Users", baje.GetID(), bajeNewUserName)
-	test.Ensure(t, err)
-	obj, err = f.b.GetParsedResource(tenant1, "Users", baje.GetID())
-	test.Ensure(t, err)
-	if obj == nil {
-		t.Fatalf("Expected valid object from GetParsedResource, got nil")
-	}
-	user, ok = obj.(*ss12000v1.User)
-	if !ok {
-		t.Fatalf("Wrong type of object returned from GetParsedResource, expected User, got %T", obj)
-	}
-	if user.UserName != "baje12@skola.kommunen.se" {
-		t.Errorf("GetParsedResource returned user with unexpected UserName: %s", user.UserName)
-	}
+	sqlDriverTest(t, func(t *testing.T, f *sqltestfixture) {
+		_, err := f.b.Create(tenant1, "Users", bajeJSON)
+		test.Ensure(t, err)
+		obj, err := f.b.GetParsedResource(tenant1, "Users", baje.GetID())
+		test.Ensure(t, err)
+		if obj == nil {
+			t.Fatalf("Expected valid object from GetParsedResource, got nil")
+		}
+		user, ok := obj.(*ss12000v1.User)
+		if !ok {
+			t.Fatalf("Wrong type of object returned from GetParsedResource, expected User, got %T", obj)
+		}
+		if user.GetID() != baje.GetID() {
+			t.Errorf("GetParsedResource returned user with unexpected ID: %s", user.GetID())
+		}
+		if user.UserName != "baje@skola.kommunen.se" {
+			t.Errorf("GetParsedResource returned user with unexpected UserName: %s", user.UserName)
+		}
+		_, err = f.b.Update(tenant1, "Users", baje.GetID(), bajeNewUserName)
+		test.Ensure(t, err)
+		obj, err = f.b.GetParsedResource(tenant1, "Users", baje.GetID())
+		test.Ensure(t, err)
+		if obj == nil {
+			t.Fatalf("Expected valid object from GetParsedResource, got nil")
+		}
+		user, ok = obj.(*ss12000v1.User)
+		if !ok {
+			t.Fatalf("Wrong type of object returned from GetParsedResource, expected User, got %T", obj)
+		}
+		if user.UserName != "baje12@skola.kommunen.se" {
+			t.Errorf("GetParsedResource returned user with unexpected UserName: %s", user.UserName)
+		}
+	})
 }
 
 func TestGetParsedResources(t *testing.T) {
-	f := startSqliteTest(t)
-	users, err := f.b.GetParsedResources(tenant1, "Users")
-	test.Ensure(t, err)
-	if len(users) != 0 {
-		t.Errorf("Expected 0 users from GetParsedResources, got %d", len(users))
-	}
+	sqlDriverTest(t, func(t *testing.T, f *sqltestfixture) {
+		users, err := f.b.GetParsedResources(tenant1, "Users")
+		test.Ensure(t, err)
+		if len(users) != 0 {
+			t.Errorf("Expected 0 users from GetParsedResources, got %d", len(users))
+		}
 
-	_, err = f.b.Create(tenant1, "Users", bajeJSON)
-	test.Ensure(t, err)
-	_, err = f.b.Create(tenant1, "Users", ananJSON)
-	test.Ensure(t, err)
+		_, err = f.b.Create(tenant1, "Users", bajeJSON)
+		test.Ensure(t, err)
+		_, err = f.b.Create(tenant1, "Users", ananJSON)
+		test.Ensure(t, err)
 
-	users, err = f.b.GetParsedResources(tenant1, "Users")
-	test.Ensure(t, err)
-	if len(users) != 2 {
-		t.Fatalf("Expected 2 users from GetParsedResources, got %d", len(users))
-	}
+		users, err = f.b.GetParsedResources(tenant1, "Users")
+		test.Ensure(t, err)
+		if len(users) != 2 {
+			t.Fatalf("Expected 2 users from GetParsedResources, got %d", len(users))
+		}
 
-	user1, ok := users[baje.GetID()].(*ss12000v1.User)
-	if !ok {
-		t.Fatalf("Bad object type returned from GetParsedResources, expected User, got %T", users[baje.GetID()])
-	}
-	if user1.UserName != "baje@skola.kommunen.se" {
-		t.Errorf("GetParsedResources returned user with unexpected UserName: %s", user1.UserName)
-	}
+		user1, ok := users[baje.GetID()].(*ss12000v1.User)
+		if !ok {
+			t.Fatalf("Bad object type returned from GetParsedResources, expected User, got %T", users[baje.GetID()])
+		}
+		if user1.UserName != "baje@skola.kommunen.se" {
+			t.Errorf("GetParsedResources returned user with unexpected UserName: %s", user1.UserName)
+		}
 
-	user2, ok := users[anan.GetID()].(*ss12000v1.User)
-	if !ok {
-		t.Fatalf("Bad object type returned from GetParsedResources, expected User, got %T", users[anan.GetID()])
-	}
-	if user2.UserName != "anan@skola.kommunen.se" {
-		t.Errorf("GetParsedResources returned user with unexpected UserName: %s", user2.UserName)
-	}
+		user2, ok := users[anan.GetID()].(*ss12000v1.User)
+		if !ok {
+			t.Fatalf("Bad object type returned from GetParsedResources, expected User, got %T", users[anan.GetID()])
+		}
+		if user2.UserName != "anan@skola.kommunen.se" {
+			t.Errorf("GetParsedResources returned user with unexpected UserName: %s", user2.UserName)
+		}
+	})
 }
 
 func TestGetResource(t *testing.T) {
-	f := startSqliteTest(t)
-	_, err := f.b.Create(tenant1, "Users", bajeJSON)
-	test.Ensure(t, err)
-	str, err := f.b.GetResource(tenant1, "Users", baje.GetID())
-	test.Ensure(t, err)
-	var user ss12000v1.User
-	err = json.Unmarshal([]byte(str), &user)
-	test.Ensure(t, err)
-	if user.GetID() != baje.GetID() {
-		t.Errorf("GetResource returned user with unexpected id: %s", user.GetID())
-	}
+	sqlDriverTest(t, func(t *testing.T, f *sqltestfixture) {
+		_, err := f.b.Create(tenant1, "Users", bajeJSON)
+		test.Ensure(t, err)
+		str, err := f.b.GetResource(tenant1, "Users", baje.GetID())
+		test.Ensure(t, err)
+		var user ss12000v1.User
+		err = json.Unmarshal([]byte(str), &user)
+		test.Ensure(t, err)
+		if user.GetID() != baje.GetID() {
+			t.Errorf("GetResource returned user with unexpected id: %s", user.GetID())
+		}
+	})
 }
 
 func TestDeleteCascade(t *testing.T) {
-	f := startSqliteTest(t)
-	_, err := f.b.Create(tenant1, "Users", liniJSON)
-	test.Ensure(t, err)
-	err = f.b.Delete(tenant1, "Users", lini.GetID())
-	test.Ensure(t, err)
+	sqlDriverTest(t, func(t *testing.T, f *sqltestfixture) {
+		_, err := f.b.Create(tenant1, "Users", liniJSON)
+		test.Ensure(t, err)
+		err = f.b.Delete(tenant1, "Users", lini.GetID())
+		test.Ensure(t, err)
 
-	named, _ := f.db.PrepareNamed(`SELECT 1 FROM Emails`)
-	var dest int
-	err = named.Get(&dest, map[string]interface{}{})
-	if err != sql.ErrNoRows {
-		t.Errorf("Expected no rows in Emails table after delete")
-	}
+		named, _ := f.db.PrepareNamed(`SELECT 1 FROM Emails`)
+		var dest int
+		err = named.Get(&dest, map[string]interface{}{})
+		if err != sql.ErrNoRows {
+			t.Errorf("Expected no rows in Emails table after delete")
+		}
+	})
 }
 
 func TestIdentity(t *testing.T) {
-	f := startSqliteTest(t)
+	sqlDriverTest(t, func(t *testing.T, f *sqltestfixture) {
+		roundTrip := func(tenant, resourceType, json, id string, want ss12000v1.Object, create bool) {
+			var err error
+			if create {
+				_, err = f.b.Create(tenant, resourceType, json)
+			} else {
+				_, err = f.b.Update(tenant, resourceType, id, json)
+			}
+			test.Ensure(t, err)
 
-	roundTrip := func(tenant, resourceType, json, id string, want ss12000v1.Object, create bool) {
-		var err error
-		if create {
-			_, err = f.b.Create(tenant, resourceType, json)
-		} else {
-			_, err = f.b.Update(tenant, resourceType, id, json)
+			obj, err := f.b.GetParsedResource(tenant, resourceType, id)
+			test.Ensure(t, err)
+			if !reflect.DeepEqual(want, obj) {
+				t.Errorf("object of type %s wasn't the same after round-trip, expected %v\n,got %v\n", resourceType, want, obj)
+			}
+
 		}
-		test.Ensure(t, err)
 
-		obj, err := f.b.GetParsedResource(tenant, resourceType, id)
-		test.Ensure(t, err)
-		if !reflect.DeepEqual(want, obj) {
-			t.Errorf("object of type %s wasn't the same after round-trip, expected %v\n,got %v\n", resourceType, want, obj)
-		}
+		roundTrip(tenant1, "Users", liniJSON, lini.GetID(), &lini, true)
+		roundTrip(tenant1, "StudentGroups", grupp1JSON, grupp1.GetID(), &grupp1, true)
+		roundTrip(tenant1, "Organisations", kommunenJSON, kommunen.GetID(), &kommunen, true)
+		roundTrip(tenant1, "SchoolUnitGroups", skolgruppenJSON, skolgruppen.GetID(), &skolgruppen, true)
+		roundTrip(tenant1, "SchoolUnits", skolenhet1JSON, skolenhet1.GetID(), &skolenhet1, true)
+		roundTrip(tenant1, "Employments", bajeEmpJSON, bajeEmp.GetID(), &bajeEmp, true)
 
-	}
+		var skolenhet1Copy ss12000v1.SchoolUnit
+		json.Unmarshal([]byte(skolenhet1JSON), &skolenhet1Copy)
 
-	roundTrip(tenant1, "Users", liniJSON, lini.GetID(), &lini, true)
-	roundTrip(tenant1, "StudentGroups", grupp1JSON, grupp1.GetID(), &grupp1, true)
-	roundTrip(tenant1, "Organisations", kommunenJSON, kommunen.GetID(), &kommunen, true)
-	roundTrip(tenant1, "SchoolUnitGroups", skolgruppenJSON, skolgruppen.GetID(), &skolgruppen, true)
-	roundTrip(tenant1, "SchoolUnits", skolenhet1JSON, skolenhet1.GetID(), &skolenhet1, true)
-	roundTrip(tenant1, "Employments", bajeEmpJSON, bajeEmp.GetID(), &bajeEmp, true)
+		skolenhet1Copy.Organisation = nil
+		body, _ := json.Marshal(&skolenhet1Copy)
+		roundTrip(tenant1, "SchoolUnits", string(body), skolenhet1Copy.GetID(), &skolenhet1Copy, false)
+		skolenhet1Copy.SchoolUnitGroup = nil
+		body, _ = json.Marshal(&skolenhet1Copy)
+		roundTrip(tenant1, "SchoolUnits", string(body), skolenhet1Copy.GetID(), &skolenhet1Copy, false)
+		skolenhet1Copy.SchoolTypes = &[]string{"GR"}
+		body, _ = json.Marshal(&skolenhet1Copy)
+		roundTrip(tenant1, "SchoolUnits", string(body), skolenhet1Copy.GetID(), &skolenhet1Copy, false)
 
-	var skolenhet1Copy ss12000v1.SchoolUnit
-	json.Unmarshal([]byte(skolenhet1JSON), &skolenhet1Copy)
+		var bajeEmpCopy ss12000v1.Employment
+		json.Unmarshal([]byte(bajeEmpJSON), &bajeEmpCopy)
+		bajeEmpCopy.Signature = ""
+		body, _ = json.Marshal(&bajeEmpCopy)
+		roundTrip(tenant1, "Employments", string(body), bajeEmpCopy.GetID(), &bajeEmpCopy, false)
 
-	skolenhet1Copy.Organisation = nil
-	body, _ := json.Marshal(&skolenhet1Copy)
-	roundTrip(tenant1, "SchoolUnits", string(body), skolenhet1Copy.GetID(), &skolenhet1Copy, false)
-	skolenhet1Copy.SchoolUnitGroup = nil
-	body, _ = json.Marshal(&skolenhet1Copy)
-	roundTrip(tenant1, "SchoolUnits", string(body), skolenhet1Copy.GetID(), &skolenhet1Copy, false)
-	skolenhet1Copy.SchoolTypes = &[]string{"GR"}
-	body, _ = json.Marshal(&skolenhet1Copy)
-	roundTrip(tenant1, "SchoolUnits", string(body), skolenhet1Copy.GetID(), &skolenhet1Copy, false)
-
-	var bajeEmpCopy ss12000v1.Employment
-	json.Unmarshal([]byte(bajeEmpJSON), &bajeEmpCopy)
-	bajeEmpCopy.Signature = ""
-	body, _ = json.Marshal(&bajeEmpCopy)
-	roundTrip(tenant1, "Employments", string(body), bajeEmpCopy.GetID(), &bajeEmpCopy, false)
-
-	roundTrip(tenant1, "Activities", grupp2ActivityJSON, grupp2Activity.GetID(), &grupp2Activity, true)
+		roundTrip(tenant1, "Activities", grupp2ActivityJSON, grupp2Activity.GetID(), &grupp2Activity, true)
+	})
 }
 
 func TestValidation(t *testing.T) {
-	f := startSqliteTest(t)
-	badUUID := `
+	sqlDriverTest(t, func(t *testing.T, f *sqltestfixture) {
+		badUUID := `
 	{
 		"schemas": ["urn:scim:schemas:extension:sis:school:1.0:Organisation"],
 		"externalId": "x80428c4-8788-47d7-aca7-761681fbe66a",
@@ -504,14 +534,14 @@ func TestValidation(t *testing.T) {
 	}
 	`
 
-	_, err := f.b.Create(tenant1, "Organisations", badUUID)
-	test.MustFail(t, err)
-	scimError, ok := err.(scimserverlite.SCIMTypedError)
-	if !ok || scimError.Type() != scimserverlite.MalformedResourceError {
-		t.Errorf("wrong error, expected malformed resource, got: %v", err)
-	}
+		_, err := f.b.Create(tenant1, "Organisations", badUUID)
+		test.MustFail(t, err)
+		scimError, ok := err.(scimserverlite.SCIMTypedError)
+		if !ok || scimError.Type() != scimserverlite.MalformedResourceError {
+			t.Errorf("wrong error, expected malformed resource, got: %v", err)
+		}
 
-	badSchoolUnitCode := `
+		badSchoolUnitCode := `
 	{
 		"schemas": ["urn:scim:schemas:extension:sis:school:1.0:SchoolUnit"],
 		"externalId": "8d371858-3fbd-4af2-ae33-84225ead4a1b",
@@ -527,12 +557,13 @@ func TestValidation(t *testing.T) {
 	}
 	`
 
-	_, err = f.b.Create(tenant1, "SchoolUnits", badSchoolUnitCode)
-	test.MustFail(t, err)
-	scimError, ok = err.(scimserverlite.SCIMTypedError)
-	if !ok || scimError.Type() != scimserverlite.MalformedResourceError {
-		t.Errorf("wrong error, expected malformed resource, got: %v", err)
-	}
+		_, err = f.b.Create(tenant1, "SchoolUnits", badSchoolUnitCode)
+		test.MustFail(t, err)
+		scimError, ok = err.(scimserverlite.SCIMTypedError)
+		if !ok || scimError.Type() != scimserverlite.MalformedResourceError {
+			t.Errorf("wrong error, expected malformed resource, got: %v", err)
+		}
+	})
 }
 
 func testExpandSchema(driverName string, keywords []string, t *testing.T) {
