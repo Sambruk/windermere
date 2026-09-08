@@ -525,21 +525,21 @@ func TestValidation(t *testing.T) {
 	}
 }
 
-func testExpandSchema(driverName string, t *testing.T) {
-	keywords := []string{"NTEXT", "NVARCHAR"}
+func testExpandSchema(driverName string, keywords []string, t *testing.T) {
 	// So far there is only 1 migration
 	got := expandDriverSpecificTypes(driverName, getSchema(1))
 	for _, keyword := range keywords {
 		if strings.Contains(got, keyword) {
 			t.Errorf("Wrong schema conversion for postgres: %s found and it shouldn't be there", keyword)
 		}
+
 	}
 }
 
 func TestExpandDriverSpecificTypesPostgres(t *testing.T) {
-	testExpandSchema("postgres", t)
+	testExpandSchema("postgres", []string{"NTEXT", "NVARCHAR", "TINYINT"}, t)
 }
 
 func TestExpandDriverSpecificTypesMysql(t *testing.T) {
-	testExpandSchema("mysql", t)
+	testExpandSchema("mysql", []string{"NTEXT", "NVARCHAR"}, t)
 }
