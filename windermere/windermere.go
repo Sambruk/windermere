@@ -30,6 +30,7 @@ import (
 	"github.com/Sambruk/windermere/ss12000v1"
 	_ "github.com/denisenkom/go-mssqldb"
 	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
 	"github.com/jmoiron/sqlx"
 	_ "modernc.org/sqlite"
 )
