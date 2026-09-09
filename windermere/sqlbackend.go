@@ -104,6 +104,17 @@ func backendKeyword(backingType, keyword string) func() string {
 	}
 }
 
+func backendTagMapFunc(backingType string) func(string) string {
+	return func(tag string) string {
+		switch backingType {
+		case "postgres":
+			return camelCase2SnakeCase(tag)
+		default:
+			return tag
+		}
+	}
+}
+
 // NewSQLBackend creates a new SQLBackend
 func NewSQLBackend(backingType, backingSource string, op ObjectParser) (backend *SQLBackend, err error) {
 	db, err := sqlx.Open(backingType, backingSource)
@@ -119,14 +130,9 @@ func NewSQLBackend(backingType, backingSource string, op ObjectParser) (backend 
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(10)
 
-	if backingType == "postgres" {
-		db.Mapper = reflectx.NewMapperTagFunc("db", func(s string) string {
-			return s
-		}, func(tag string) string {
-			_ = strings.ToLower(tag)
-			return tag
-		})
-	}
+	db.Mapper = reflectx.NewMapperTagFunc("db", func(s string) string {
+		return s
+	}, backendTagMapFunc(backingType))
 	return &SQLBackend{db: db, objectParser: op, migrationTemplate: template.New("migrations").Funcs(
 		template.FuncMap{
 			"column":   backendColumn(backingType),
