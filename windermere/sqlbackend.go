@@ -372,7 +372,7 @@ func (backend *SQLBackend) initSchema(retry bool) error {
 	// loop over all migrations in order and apply those with higher
 	// version than current
 	for i := version + 1; i <= currentSchemaVersion(); i++ {
-		schema, err := backend.schema(version)
+		schema, err := backend.schema(i)
 		if err != nil {
 			return err
 		}
