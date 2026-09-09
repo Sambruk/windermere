@@ -34,10 +34,15 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-//////////////////////////////////////////
-// Test data re-used in several test cases
-//////////////////////////////////////////
+type dummySS12000v1Object struct{}
 
+func (dummySS12000v1Object) GetID() string {
+	return "123456x"
+}
+
+// ////////////////////////////////////////
+// Test data re-used in several test cases
+// ////////////////////////////////////////
 var tenant1 = "https://tenant.com"
 var tenant2 = "https://other.com"
 
@@ -263,8 +268,7 @@ type sqltestfixture struct {
 	db *sqlx.DB
 }
 
-func startTest(t *testing.T, driver string, dsn string) *sqltestfixture {
-	initOnce.Do(initTestData)
+func newSQLtextfixture(driver, dsn string, init bool) (*sqltestfixture, error) {
 	var f sqltestfixture
 	if driver == "" {
 		driver = "sqlite"
@@ -272,26 +276,81 @@ func startTest(t *testing.T, driver string, dsn string) *sqltestfixture {
 	if dsn == "" {
 		dsn = ":memory:"
 	}
-	db, err := sqlx.Open(driver, dsn)
-	test.Ensure(t, err)
 	parser := validatingObjectParser(CreateOptionalValidator(true, true), objectParser)
-	b, err := NewSQLBackend(db, parser)
-	test.Ensure(t, err)
-	f.b = b
-	f.db = db
-	return &f
+	sqlBackend, err := NewSQLBackend(driver, dsn, parser)
+	if err != nil {
+		return nil, err
+	}
+	if init {
+		err = sqlBackend.initSchema(false)
+		if err != nil {
+			return nil, err
+		}
+	}
+	f.b = sqlBackend
+	f.db = sqlBackend.db
+	return &f, nil
 }
 
-func startSqliteTest(t *testing.T) *sqltestfixture {
-	return startTest(t, "", "")
+func startTest(t *testing.T, driver string, dsn string) *sqltestfixture {
+	initOnce.Do(initTestData)
+	sqltestfixture, err := newSQLtextfixture(driver, dsn, true)
+	if err != nil {
+		t.Errorf("Error creating test DB fixture: %s", err)
+		t.FailNow()
+	}
+	return sqltestfixture
+}
+
+func parseSqlTestDrivers() [][]string {
+	driversToTestEnv := os.Getenv("WINDERMERE_TEST_DB_DRIVERS")
+	if driversToTestEnv == "" {
+		// If no engine is selected, run sqlite on memory
+		return [][]string{{"sqlite", ":memory:"}}
+	}
+	var sqlTestDrivers = [][]string{}
+	for dsn := range strings.SplitSeq(driversToTestEnv, ";") {
+		dsnSplit := strings.Split(dsn, "://")
+		if len(dsnSplit) != 2 {
+			log.Printf("Found wrong DSN for SQL Backend testing %s, ignoring it", dsn)
+			continue
+		}
+		switch dsnSplit[0] {
+		case "postgresql":
+			sqlTestDrivers = append(sqlTestDrivers, []string{"postgres", dsn})
+		case "mysql", "sqlserver":
+			sqlTestDrivers = append(sqlTestDrivers, []string{dsnSplit[0], dsn})
+		case "sqlite":
+			sqlTestDrivers = append(sqlTestDrivers, []string{dsnSplit[0], dsnSplit[1]})
+		default:
+			log.Printf("Found wrong DSN for SQL Backend testing %s, ignoring it", dsn)
+			continue
+		}
+
+	}
+	if len(sqlTestDrivers) == 0 {
+		// If we dont find any suitable driver, default to sqlite in memory
+		return [][]string{{"sqlite", ":memory:"}}
+	}
+	return sqlTestDrivers
+}
+
+func sqlDriverCleanupTables(sqlTestFixture *sqltestfixture) error {
+	if os.Getenv("WINDERMERE_TEST_NO_CLEANUP") == "1" {
+		return nil
+	}
+	tx := sqlTestFixture.db.MustBegin()
+	for _, table := range tablesForClearTenant {
+		_ = tx.MustExec("DELETE from " + string(table))
+	}
+	if err := tx.Commit(); err != nil {
+		log.Fatalf("Error when claning the database: %s", err)
+	}
+	return nil
 }
 
 func sqlDriverTest(t *testing.T, test func(t *testing.T, sqlTestFixture *sqltestfixture)) {
-	driversToTestEnv := os.Getenv("WINDERMERE_TEST_DB_DRIVERS")
-	driversToTest := [][]string{}
-	if driversToTestEnv == "" {
-		driversToTest = [][]string{{"sqlite", ":memory:"}}
-	}
+	driversToTest := parseSqlTestDrivers()
 	for _, driver := range driversToTest {
 		if len(driver) != 2 {
 			log.Printf("Unknown driver to test %s", strings.Join(driver, " | "))
@@ -301,7 +360,12 @@ func sqlDriverTest(t *testing.T, test func(t *testing.T, sqlTestFixture *sqltest
 		dsn := driver[1]
 		t.Run(driverName, func(t *testing.T) {
 			t.Parallel()
-			test(t, startTest(t, driverName, dsn))
+			f := startTest(t, driverName, dsn)
+			defer sqlDriverCleanupTables(f)
+			test(t, f)
+			// t.Cleanup(func() {
+			// 	sqlDriverCleanupTables(f)
+			// })
 		})
 	}
 }
@@ -553,7 +617,7 @@ func TestValidation(t *testing.T) {
 		"organisation":  {
 			"value": "d80428c4-8788-47d7-aca7-761681fbe66a"
 		},
-		"municipalityCode": "9999"
+		"municipality/Code": "9999"
 	}
 	`
 
@@ -566,21 +630,30 @@ func TestValidation(t *testing.T) {
 	})
 }
 
-func testExpandSchema(driverName string, keywords []string, t *testing.T) {
+// TODO: Add tests to check that columns are replacedx
+func testKeywordsByBackendInSchema(backendType string, keywords []string, t *testing.T) {
 	// So far there is only 1 migration
-	got := expandDriverSpecificTypes(driverName, getSchema(1))
+	sqlBackend, err := NewSQLBackend(backendType, "", func(_a, _b string) (ss12000v1.Object, error) {
+		return dummySS12000v1Object{}, nil
+	})
+	got, err := sqlBackend.schema(1)
+	test.Ensure(t, err)
+	hasWrongKeywords := false
 	for _, keyword := range keywords {
 		if strings.Contains(got, keyword) {
 			t.Errorf("Wrong schema conversion for postgres: %s found and it shouldn't be there", keyword)
+			hasWrongKeywords = true
 		}
-
+	}
+	if hasWrongKeywords {
+		t.Errorf("Got migration: %s", got)
 	}
 }
 
 func TestExpandDriverSpecificTypesPostgres(t *testing.T) {
-	testExpandSchema("postgres", []string{"NTEXT", "NVARCHAR", "TINYINT"}, t)
+	testKeywordsByBackendInSchema("postgres", []string{"NTEXT", "NVARCHAR", "TINYINT"}, t)
 }
 
 func TestExpandDriverSpecificTypesMysql(t *testing.T) {
-	testExpandSchema("mysql", []string{"NTEXT", "NVARCHAR"}, t)
+	testKeywordsByBackendInSchema("mysql", []string{"NTEXT", "NVARCHAR"}, t)
 }

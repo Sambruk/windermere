@@ -24,31 +24,117 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"regexp"
+	"strings"
+	"text/template"
 	"time"
+	"unicode"
 
 	"github.com/Sambruk/windermere/scimserverlite"
 	scim "github.com/Sambruk/windermere/scimserverlite"
 	"github.com/Sambruk/windermere/ss12000v1"
 	"github.com/jmoiron/sqlx"
+	"github.com/jmoiron/sqlx/reflectx"
 )
 
 type ObjectParser func(resourceType, resource string) (ss12000v1.Object, error)
 
 // SQLBackend implements scimserverlite.Backend for SQL databases
 type SQLBackend struct {
-	db           *sqlx.DB
-	objectParser ObjectParser
+	db                *sqlx.DB
+	objectParser      ObjectParser
+	migrationTemplate *template.Template
+}
+
+// Map used to replace different keywords in different sql engines
+var replaceBackendKeywords = map[string]map[string]string{
+	"postgres": {
+		"NTEXT":    "TEXT",
+		"NVARCHAR": "VARCHAR",
+		"TINYINT":  "SMALLINT",
+	},
+	"mysql": {
+		"NTEXT":    "TEXT",
+		"NVARCHAR": "VARCHAR",
+	},
+}
+
+// Convert camelCase into snake_case
+func camelCase2SnakeCase(camelCase string) string {
+	var snakeCase []rune
+	for i, r := range camelCase {
+		if unicode.IsUpper(r) {
+			if i > 0 {
+				snakeCase = append(snakeCase, '_')
+			}
+			snakeCase = append(snakeCase, unicode.ToLower(r))
+		} else {
+			snakeCase = append(snakeCase, r)
+		}
+	}
+	return string(snakeCase)
+}
+
+// Create a function to format columnName into what backingType SQL engine expects:
+// - mysql / sqlserver :: camelCase naming, example: myColumn
+// - postgres :: snake_case naming, example: my_column
+func backendColumn(backingType string) func(string) string {
+	return func(columnName string) string {
+		switch backingType {
+		case "postgres":
+			return camelCase2SnakeCase(columnName)
+		default:
+			return columnName
+		}
+	}
+}
+
+// Create a function to convert keyword into what backingType SQL engine expects
+// This function makes use of replaceBackendKeywords map
+func backendKeyword(backingType, keyword string) func() string {
+	return func() string {
+		backend, ok := replaceBackendKeywords[backingType]
+		if !ok {
+			return keyword
+		}
+		newKeyword, ok := backend[keyword]
+		if !ok {
+			return keyword
+		}
+		return newKeyword
+	}
 }
 
 // NewSQLBackend creates a new SQLBackend
-func NewSQLBackend(d *sqlx.DB, op ObjectParser) (backend *SQLBackend, err error) {
-	backend = &SQLBackend{db: d, objectParser: op}
-	err = backend.initSchema()
+func NewSQLBackend(backingType, backingSource string, op ObjectParser) (backend *SQLBackend, err error) {
+	db, err := sqlx.Open(backingType, backingSource)
+
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open connection to database: %v", err)
 	}
-	return
+
+	// Recommended by the MySQL driver documentation,
+	// should perhaps be configurable?
+	// should this match other drivers?
+	db.SetConnMaxLifetime(time.Minute * 3)
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(10)
+
+	if backingType == "postgres" {
+		db.Mapper = reflectx.NewMapperTagFunc("db", func(s string) string {
+			return s
+		}, func(tag string) string {
+			_ = strings.ToLower(tag)
+			return tag
+		})
+	}
+	return &SQLBackend{db: db, objectParser: op, migrationTemplate: template.New("migrations").Funcs(
+		template.FuncMap{
+			"column":   backendColumn(backingType),
+			"NVARCHAR": backendKeyword(backingType, "NVARCHAR"),
+			"NTEXT":    backendKeyword(backingType, "NTEXT"),
+			"TINYINT":  backendKeyword(backingType, "TINYINT"),
+		},
+	)}, nil
 }
 
 func getDBVersion(db *sqlx.DB) int {
@@ -100,101 +186,101 @@ var tablesForClearTenant = []safeString{
 }
 
 var migrations = [...]string{
-	`	
+	`
 	CREATE TABLE windermere_meta (
 		version INT NOT NULL
 	);
 
 	INSERT INTO windermere_meta (version) VALUES (1);
-	
+
 	CREATE TABLE Users (
 		tenant {{NVARCHAR}}(255) NOT NULL,
 		id VARCHAR(36) NOT NULL,
-		userName {{NTEXT}} NOT NULL,
-		familyName {{NTEXT}} NOT NULL,
-		givenName {{NTEXT}} NOT NULL,
-		displayName {{NTEXT}} NOT NULL,
+		{{"userName" | column}} {{NTEXT}} NOT NULL,
+        {{"familyName" | column}} {{NTEXT}} NOT NULL,
+        {{"givenName" | column}} {{NTEXT}} NOT NULL,
+        {{"displayName" | column}} {{NTEXT}} NOT NULL,
 		PRIMARY KEY (tenant, id)
 	);
 
 	CREATE TABLE Emails (
 		tenant {{NVARCHAR}}(255) NOT NULL,
-		userId VARCHAR(36) NOT NULL,
+		{{"userId" | column}} VARCHAR(36) NOT NULL,
 		value {{NTEXT}} NOT NULL,
 		type {{NTEXT}} NULL,
-		FOREIGN KEY (tenant, userId) REFERENCES Users(tenant, id) ON DELETE CASCADE
+		FOREIGN KEY (tenant, {{"userId" | column}}) REFERENCES Users(tenant, id) ON DELETE CASCADE
 	);
 
-	CREATE INDEX EmailsIdx ON Emails (tenant, userId);
+	CREATE INDEX EmailsIdx ON Emails (tenant, {{"userId" | column}});
 
 	CREATE TABLE Enrolments (
 		tenant {{NVARCHAR}}(255) NOT NULL,
-		userId VARCHAR(36) NOT NULL,
+		{{"userId" | column}} VARCHAR(36) NOT NULL,
 		value VARCHAR(36) NOT NULL,
-		schoolYear TINYINT NULL,
-		FOREIGN KEY (tenant, userId) REFERENCES Users(tenant, id) ON DELETE CASCADE
+		{{"schoolYear" | column}} {{TINYINT}} NULL,
+		FOREIGN KEY (tenant, {{"userId" | column}}) REFERENCES Users(tenant, id) ON DELETE CASCADE
 	);
 
-	CREATE INDEX EnrolmentsIdx ON Enrolments (tenant, userId);
+	CREATE INDEX EnrolmentsIdx ON Enrolments (tenant, {{"userId" | column}});
 
 	CREATE TABLE StudentGroups (
 		tenant {{NVARCHAR}}(255) NOT NULL,
 		id VARCHAR(36) NOT NULL,
-		displayName {{NTEXT}} NOT NULL,
+		{{"displayName" | column}} {{NTEXT}} NOT NULL,
 		owner VARCHAR(36) NOT NULL,
-		studentGroupType {{NTEXT}} NULL,
-		PRIMARY KEY (tenant, id)				
+		{{"studentGroupType" | column}} {{NTEXT}} NULL,
+		PRIMARY KEY (tenant, id)
 	);
 
 	CREATE TABLE StudentMemberships (
 		tenant {{NVARCHAR}}(255) NOT NULL,
-		groupId VARCHAR(36) NOT NULL,
-		userId VARCHAR(36) NOT NULL,
-		FOREIGN KEY (tenant, groupId) REFERENCES StudentGroups(tenant, id) ON DELETE CASCADE
+		{{"groupId" | column}} VARCHAR(36) NOT NULL,
+		{{"userId" | column}} VARCHAR(36) NOT NULL,
+		FOREIGN KEY (tenant, {{"groupId" | column}}) REFERENCES StudentGroups(tenant, id) ON DELETE CASCADE
 	);
 
-	CREATE INDEX StudentMembershipsIdx ON StudentMemberships (tenant, groupId);
+	CREATE INDEX StudentMembershipsIdx ON StudentMemberships (tenant, {{"groupId" | column}});
 
 	CREATE TABLE Organisations (
 		tenant {{NVARCHAR}}(255) NOT NULL,
 		id VARCHAR(36) NOT NULL,
-		displayName {{NTEXT}} NOT NULL,
+		{{"displayName" | column}} {{NTEXT}} NOT NULL,
 		PRIMARY KEY (tenant, id)
 	);
 
 	CREATE TABLE SchoolUnitGroups (
 		tenant {{NVARCHAR}}(255) NOT NULL,
 		id VARCHAR(36) NOT NULL,
-		displayName {{NTEXT}} NOT NULL,
+		{{"displayName" | column}} {{NTEXT}} NOT NULL,
 		PRIMARY KEY (tenant, id)
 	);
 
 	CREATE TABLE SchoolUnits (
 		tenant {{NVARCHAR}}(255) NOT NULL,
 		id VARCHAR(36) NOT NULL,
-		displayName {{NTEXT}} NOT NULL,
-		schoolUnitCode {{NTEXT}} NOT NULL,
+		{{"displayName" | column}} {{NTEXT}} NOT NULL,
+		{{"schoolUnitCode" | column}} {{NTEXT}} NOT NULL,
 		organisation VARCHAR(36) NULL,
-		schoolUnitGroup VARCHAR(36) NULL,
-		municipalityCode {{NTEXT}} NULL,
+		{{"schoolUnitGroup" | column}} VARCHAR(36) NULL,
+		{{"municipalityCode" | column}} {{NTEXT}} NULL,
 		PRIMARY KEY (tenant, id)
 	);
 
 	CREATE TABLE SchoolTypes (
-		tenant {{NVARCHAR}}(255) NOT NULL,
-		schoolUnitId VARCHAR(36) NOT NULL,
-		schoolType {{NTEXT}} NOT NULL,
-		FOREIGN KEY (tenant, schoolUnitId) REFERENCES SchoolUnits(tenant, id) ON DELETE CASCADE
+		{{"tenant" | column}} {{NVARCHAR}}(255) NOT NULL,
+		{{"schoolUnitId" | column}} VARCHAR(36) NOT NULL,
+		{{"schoolType" | column}} {{NTEXT}} NOT NULL,
+		FOREIGN KEY (tenant, {{"schoolUnitId" | column}}) REFERENCES SchoolUnits(tenant, id) ON DELETE CASCADE
 	);
 
-	CREATE INDEX SchoolTypesIdx ON SchoolTypes (tenant, schoolUnitId);
+	CREATE INDEX SchoolTypesIdx ON SchoolTypes (tenant, {{"schoolUnitId" | column}});
 
 	CREATE TABLE Employments (
 		tenant {{NVARCHAR}}(255) NOT NULL,
 		id VARCHAR(36) NOT NULL,
-		employedAt VARCHAR(36) NOT NULL,
-		userId VARCHAR(36) NOT NULL,
-		employmentRole {{NTEXT}} NOT NULL,
+		{{"employedAt" | column}} VARCHAR(36) NOT NULL,
+		{{"userId" | column}} VARCHAR(36) NOT NULL,
+		{{"employmentRole" | column}} {{NTEXT}} NOT NULL,
 		signature {{NTEXT}} NULL,
 		PRIMARY KEY (tenant, id)
 	);
@@ -202,28 +288,28 @@ var migrations = [...]string{
 	CREATE TABLE Activities (
 		tenant {{NVARCHAR}}(255) NOT NULL,
 		id VARCHAR(36) NOT NULL,
-		displayName {{NTEXT}} NOT NULL,
+		{{"displayName" | column}} {{NTEXT}} NOT NULL,
 		owner VARCHAR(36) NOT NULL,
 		PRIMARY KEY (tenant, id)
 	);
 
 	CREATE TABLE ActivityTeachers (
 		tenant {{NVARCHAR}}(255) NOT NULL,
-		activityId VARCHAR(36) NOT NULL,
-		employmentId VARCHAR(36) NOT NULL,
-		FOREIGN KEY (tenant, activityId) REFERENCES Activities(tenant, id) ON DELETE CASCADE
+		{{"activityId" | column}} VARCHAR(36) NOT NULL,
+		{{"employmentId" | column}} VARCHAR(36) NOT NULL,
+		FOREIGN KEY (tenant, {{"activityId" | column}}) REFERENCES Activities(tenant, id) ON DELETE CASCADE
 	);
 
-	CREATE INDEX ActivityTeachersIdx ON ActivityTeachers (tenant, activityId);
+	CREATE INDEX ActivityTeachersIdx ON ActivityTeachers (tenant, {{"activityId" | column}});
 
 	CREATE TABLE ActivityGroups (
 		tenant {{NVARCHAR}}(255) NOT NULL,
-		activityId VARCHAR(36) NOT NULL,
-		groupId VARCHAR(36) NOT NULL,
-		FOREIGN KEY (tenant, activityId) REFERENCES Activities(tenant, id) ON DELETE CASCADE
+		{{"activityId" | column}} VARCHAR(36) NOT NULL,
+		{{"groupId" | column}} VARCHAR(36) NOT NULL,
+		FOREIGN KEY (tenant, {{"activityId" | column}}) REFERENCES Activities(tenant, id) ON DELETE CASCADE
 	);
 
-	CREATE INDEX ActivityGroupsIdx ON ActivityGroups (tenant, activityId);
+	CREATE INDEX ActivityGroupsIdx ON ActivityGroups (tenant, {{"activityId" | column}});
 	`,
 }
 
@@ -243,38 +329,28 @@ func driverSpecificInit(db *sqlx.DB) error {
 	return nil
 }
 
-func expandDriverSpecificTypes(driverName, schema string) string {
-	removeCurlies := func(schema string) string {
-		re := regexp.MustCompile(`{{(.*?)}}`)
-		return string(re.ReplaceAll([]byte(schema), []byte("$1")))
+func (backed *SQLBackend) schema(version int) (string, error) {
+	var migration strings.Builder
+	tmpl, err := backed.migrationTemplate.Parse(getSchema(version))
+	if err != nil {
+		return "", err
 	}
-	// Default expansion simply removes curly brackets
-	expander := removeCurlies
-
-	if driverName == "mysql" || driverName == "postgres" {
-		// For MySQL and postgres we'll replace NTEXT and NVARCHAR with TEXT and VARCHAR
-		// For Postgres we also replace tinyint into smallint
-		expander = func(schema string) string {
-			re := regexp.MustCompile(`{{N(.*?)}}`)
-			s1 := string(re.ReplaceAll([]byte(schema), []byte("$1")))
-			if driverName == "postgres" {
-				re = regexp.MustCompile("TINYINT")
-				s1 = string(re.ReplaceAll([]byte(s1), []byte("SMALLINT")))
-			}
-			return s1
-		}
-
+	if err := tmpl.Execute(&migration, ""); err != nil {
+		return "", err
 	}
-	return expander(schema)
+	return migration.String(), nil
 }
 
-func (backend *SQLBackend) initSchema() error {
+func (backend *SQLBackend) initSchema(retry bool) error {
 	// Ensure we have a working connection since any error in
 	// getDBVersion is interpreted as an uninitialized database.
 	const waitTime = 5 * time.Second
 	for err := backend.db.Ping(); err != nil; err = backend.db.Ping() {
 		log.Printf("Failed to connect to database: %v", err)
 		log.Printf("Will retry in %d seconds", waitTime/time.Second)
+		if !retry {
+			return err
+		}
 		time.Sleep(waitTime)
 	}
 	if err := driverSpecificInit(backend.db); err != nil {
@@ -296,7 +372,11 @@ func (backend *SQLBackend) initSchema() error {
 	// loop over all migrations in order and apply those with higher
 	// version than current
 	for i := version + 1; i <= currentSchemaVersion(); i++ {
-		_, err = tx.Exec(expandDriverSpecificTypes(backend.db.DriverName(), getSchema(i)))
+		schema, err := backend.schema(version)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(schema)
 		if err != nil {
 			return err
 		}
@@ -423,7 +503,6 @@ func (backend *SQLBackend) Create(tenant, resourceType, resource string) (string
 	if err != nil {
 		return "", err
 	}
-
 	_, err = backend.objectCreator(tx, tenant, obj)
 
 	if err != nil {
@@ -653,6 +732,7 @@ func (backend *SQLBackend) GetParsedResource(tenant, resourceType string, id str
 	defer tx.Rollback()
 
 	err = ensureHasRecord(tx, table, tenant, id)
+
 	if err != nil {
 		return nil, err
 	}
