@@ -24,14 +24,12 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/Sambruk/windermere/scimserverlite"
 	"github.com/Sambruk/windermere/ss12000v1"
 	_ "github.com/denisenkom/go-mssqldb"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
-	"github.com/jmoiron/sqlx"
 	_ "modernc.org/sqlite"
 )
 
@@ -71,20 +69,9 @@ func New(backingType, backingSource string, tenantGetter scimserverlite.TenantGe
 		dummyBackend := scimserverlite.NewDummyBackend(untypedObjectParser)
 		b = dummyBackend
 	} else {
-		db, err := sqlx.Open(backingType, backingSource)
+		sqlBackend, err := NewSQLBackend(backingType, backingSource, parser)
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to open connection to database: %v", err)
-		}
-
-		// Recommended by the MySQL driver documentation,
-		// should perhaps be configurable?
-		db.SetConnMaxLifetime(time.Minute * 3)
-		db.SetMaxOpenConns(10)
-		db.SetMaxIdleConns(10)
-
-		sqlBackend, err := NewSQLBackend(db, parser)
-
+		err = sqlBackend.initSchema(true)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize SQL backend: %v", err)
 		}
