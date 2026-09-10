@@ -39,10 +39,34 @@ import (
 type ObjectParser func(resourceType, resource string) (ss12000v1.Object, error)
 
 // SQLBackend implements scimserverlite.Backend for SQL databases
+// SQLBackend uses sqlx library and this library makes use of reflectx.Mapper to
+// map the field name and the tag name in the structs.
+//
+// To have support for postgres right now we rely in the fact that columns are
+// case insensitive, this means that even if we have myColumen in the schema it
+// will end up as mycolumn in postgres.
+//
+// To acoid changing all the named queries (they are using camel case style for
+// the parameters, for instance :lastName) we map explicitly all the column
+// names to lowercase.
+//
+// This works with no changes when writing data into the database (taking
+// advantange of postgres seeing lastName as lastname :D) but it give us
+// problems when reading the data and mapping it back to the go struct.
+//
+// At this point we get a column as lastname but the struct wants lastName.
+// To allow sqlx to unmarshall the data into the struct type we need to map the
+// field names to lowercase as well.
+//
+// The readerMapper field is doing exactly that.
+// Note that the wrierMapper is added to make it look consistent but it's not
+// really used now.
 type SQLBackend struct {
 	db                *sqlx.DB
 	objectParser      ObjectParser
 	migrationTemplate *template.Template
+	readerMapper      *reflectx.Mapper
+	writerMapper      *reflectx.Mapper
 }
 
 // Map used to replace different keywords in different sql engines
@@ -81,7 +105,8 @@ func backendColumn(backingType string) func(string) string {
 	return func(columnName string) string {
 		switch backingType {
 		case "postgres":
-			return camelCase2SnakeCase(columnName)
+			// At soem point we should use camelCase1SnakeCase here
+			return strings.ToLower(columnName)
 		default:
 			return columnName
 		}
@@ -104,18 +129,7 @@ func backendKeyword(backingType, keyword string) func() string {
 	}
 }
 
-func backendTagMapFunc(backingType string) func(string) string {
-	return func(tag string) string {
-		switch backingType {
-		case "postgres":
-			return camelCase2SnakeCase(tag)
-		default:
-			return tag
-		}
-	}
-}
-
-// NewSQLBackend creates a new SQLBackend
+// Create a new SQLBackend
 func NewSQLBackend(backingType, backingSource string, op ObjectParser) (backend *SQLBackend, err error) {
 	db, err := sqlx.Open(backingType, backingSource)
 
@@ -130,9 +144,14 @@ func NewSQLBackend(backingType, backingSource string, op ObjectParser) (backend 
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(10)
 
-	db.Mapper = reflectx.NewMapperTagFunc("db", func(s string) string {
-		return s
-	}, backendTagMapFunc(backingType))
+	// postgres has case insensitive columns so we need to map the struct fields to match the columsn names in order to run scanAll
+	readerMapper := reflectx.NewMapperTagFunc(
+		"db",
+		backendColumn(backingType),
+		backendColumn(backingType),
+	)
+	writerMapper := db.Mapper
+
 	return &SQLBackend{db: db, objectParser: op, migrationTemplate: template.New("migrations").Funcs(
 		template.FuncMap{
 			"column":   backendColumn(backingType),
@@ -140,7 +159,7 @@ func NewSQLBackend(backingType, backingSource string, op ObjectParser) (backend 
 			"NTEXT":    backendKeyword(backingType, "NTEXT"),
 			"TINYINT":  backendKeyword(backingType, "TINYINT"),
 		},
-	)}, nil
+	), readerMapper: readerMapper, writerMapper: writerMapper}, nil
 }
 
 func getDBVersion(db *sqlx.DB) int {
@@ -335,6 +354,9 @@ func driverSpecificInit(db *sqlx.DB) error {
 	return nil
 }
 
+// Get schema for a specific migration version.
+// This function will resolve the template and return an error in case it can't
+// be executed.
 func (backed *SQLBackend) schema(version int) (string, error) {
 	var migration strings.Builder
 	tmpl, err := backed.migrationTemplate.Parse(getSchema(version))
@@ -347,6 +369,8 @@ func (backed *SQLBackend) schema(version int) (string, error) {
 	return migration.String(), nil
 }
 
+// Initialize the database schema. it will try to retry to connect if retry is
+// true.
 func (backend *SQLBackend) initSchema(retry bool) error {
 	// Ensure we have a working connection since any error in
 	// getDBVersion is interpreted as an uninitialized database.
@@ -754,4 +778,17 @@ func (backend *SQLBackend) GetParsedResource(tenant, resourceType string, id str
 		return nil, err
 	}
 	return obj, nil
+}
+
+// Wrapper around PrepareNamed that sets the sqlx.Mapper for this Tx to the
+// readerMapper.
+func (backend *SQLBackend) PrepareNamedSelect(
+	tx *sqlx.Tx, query string,
+) (*sqlx.NamedStmt, error) {
+	namedStmt, err := tx.PrepareNamed(query)
+	namedStmt.Stmt.Mapper = backend.readerMapper
+	if err != nil {
+		return nil, err
+	}
+	return namedStmt, nil
 }
