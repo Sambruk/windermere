@@ -105,11 +105,11 @@ func (backend *SQLBackend) studentGroupMutator(tx *sqlx.Tx, tenant string, group
 }
 
 func (backend *SQLBackend) studentGroupReader(tx *sqlx.Tx, mainQuery, membershipQuery string, args map[string]interface{}) ([]ss12000v1.Object, error) {
-	mainNamed, err := tx.PrepareNamed(mainQuery)
+	mainNamed, err := backend.PrepareNamedSelect(tx, mainQuery)
 	if err != nil {
 		return nil, err
 	}
-	membershipNamed, err := tx.PrepareNamed(membershipQuery)
+	membershipNamed, err := backend.PrepareNamedSelect(tx, membershipQuery)
 	if err != nil {
 		return nil, err
 	}

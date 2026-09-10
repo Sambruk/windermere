@@ -55,7 +55,7 @@ func (backend *SQLBackend) schoolUnitGroupMutator(tx *sqlx.Tx, tenant string, sc
 }
 
 func (backend *SQLBackend) schoolUnitGroupReader(tx *sqlx.Tx, mainQuery string, args map[string]interface{}) ([]ss12000v1.Object, error) {
-	mainNamed, err := tx.PrepareNamed(mainQuery)
+	mainNamed, err := backend.PrepareNamedSelect(tx, mainQuery)
 	if err != nil {
 		return nil, err
 	}

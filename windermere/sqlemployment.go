@@ -65,7 +65,7 @@ func (backend *SQLBackend) employmentMutator(tx *sqlx.Tx, tenant string, employm
 }
 
 func (backend *SQLBackend) employmentReader(tx *sqlx.Tx, mainQuery string, args map[string]interface{}) ([]ss12000v1.Object, error) {
-	mainNamed, err := tx.PrepareNamed(mainQuery)
+	mainNamed, err := backend.PrepareNamedSelect(tx, mainQuery)
 	if err != nil {
 		return nil, err
 	}

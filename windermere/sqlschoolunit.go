@@ -116,11 +116,11 @@ func (backend *SQLBackend) schoolUnitMutator(tx *sqlx.Tx, tenant string, schoolU
 }
 
 func (backend *SQLBackend) schoolUnitReader(tx *sqlx.Tx, mainQuery, schoolTypeQuery string, args map[string]interface{}) ([]ss12000v1.Object, error) {
-	mainNamed, err := tx.PrepareNamed(mainQuery)
+	mainNamed, err := backend.PrepareNamedSelect(tx, mainQuery)
 	if err != nil {
 		return nil, err
 	}
-	schoolTypeNamed, err := tx.PrepareNamed(schoolTypeQuery)
+	schoolTypeNamed, err := backend.PrepareNamedSelect(tx, schoolTypeQuery)
 	if err != nil {
 		return nil, err
 	}
