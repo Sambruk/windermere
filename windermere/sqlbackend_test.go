@@ -40,6 +40,10 @@ func (dummySS12000v1Object) GetID() string {
 	return "123456x"
 }
 
+func dummyObjectParser(_a, _b string) (ss12000v1.Object, error) {
+	return dummySS12000v1Object{}, nil
+}
+
 // ////////////////////////////////////////
 // Test data re-used in several test cases
 // ////////////////////////////////////////
@@ -633,9 +637,7 @@ func TestValidation(t *testing.T) {
 // TODO: Add tests to check that columns are replacedx
 func testKeywordsByBackendInSchema(backendType string, keywords []string, t *testing.T) {
 	// So far there is only 1 migration
-	sqlBackend, err := NewSQLBackend(backendType, "", func(_a, _b string) (ss12000v1.Object, error) {
-		return dummySS12000v1Object{}, nil
-	})
+	sqlBackend, err := NewSQLBackend(backendType, "", dummyObjectParser)
 	got, err := sqlBackend.schema(1)
 	test.Ensure(t, err)
 	hasWrongKeywords := false
