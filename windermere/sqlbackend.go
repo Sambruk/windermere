@@ -27,7 +27,6 @@ import (
 	"strings"
 	"text/template"
 	"time"
-	"unicode"
 
 	"github.com/Sambruk/windermere/scimserverlite"
 	scim "github.com/Sambruk/windermere/scimserverlite"
@@ -80,22 +79,6 @@ var replaceBackendKeywords = map[string]map[string]string{
 		"NTEXT":    "TEXT",
 		"NVARCHAR": "VARCHAR",
 	},
-}
-
-// Convert camelCase into snake_case
-func camelCase2SnakeCase(camelCase string) string {
-	var snakeCase []rune
-	for i, r := range camelCase {
-		if unicode.IsUpper(r) {
-			if i > 0 {
-				snakeCase = append(snakeCase, '_')
-			}
-			snakeCase = append(snakeCase, unicode.ToLower(r))
-		} else {
-			snakeCase = append(snakeCase, r)
-		}
-	}
-	return string(snakeCase)
 }
 
 // Create a function to format columnName into what backingType SQL engine expects:
