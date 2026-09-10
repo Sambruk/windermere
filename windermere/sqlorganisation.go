@@ -55,7 +55,7 @@ func (backend *SQLBackend) organisationMutator(tx *sqlx.Tx, tenant string, organ
 }
 
 func (backend *SQLBackend) organisationReader(tx *sqlx.Tx, mainQuery string, args map[string]interface{}) ([]ss12000v1.Object, error) {
-	mainNamed, err := tx.PrepareNamed(mainQuery)
+	mainNamed, err := backend.PrepareNamedSelect(tx, mainQuery)
 	if err != nil {
 		return nil, err
 	}

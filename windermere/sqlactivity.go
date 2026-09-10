@@ -145,15 +145,15 @@ func (backend *SQLBackend) activityMutator(tx *sqlx.Tx, tenant string, activity 
 }
 
 func (backend *SQLBackend) activityReader(tx *sqlx.Tx, mainQuery, teacherQuery, groupQuery string, args map[string]interface{}) ([]ss12000v1.Object, error) {
-	mainNamed, err := tx.PrepareNamed(mainQuery)
+	mainNamed, err := backend.PrepareNamedSelect(tx, mainQuery)
 	if err != nil {
 		return nil, err
 	}
-	teacherNamed, err := tx.PrepareNamed(teacherQuery)
+	teacherNamed, err := backend.PrepareNamedSelect(tx, teacherQuery)
 	if err != nil {
 		return nil, err
 	}
-	groupNamed, err := tx.PrepareNamed(groupQuery)
+	groupNamed, err := backend.PrepareNamedSelect(tx, groupQuery)
 	if err != nil {
 		return nil, err
 	}

@@ -154,16 +154,18 @@ func (backend *SQLBackend) userMutator(tx *sqlx.Tx, tenant string, user *ss12000
 }
 
 func (backend *SQLBackend) userReader(tx *sqlx.Tx, mainQuery, emailQuery, enrolmentQuery string, args map[string]interface{}) ([]ss12000v1.Object, error) {
-	mainNamed, err := tx.PrepareNamed(mainQuery)
+	mainNamed, err := backend.PrepareNamedSelect(tx, mainQuery)
 	if err != nil {
 		return nil, err
 	}
-	emailNamed, err := tx.PrepareNamed(emailQuery)
+	emailNamed, err := backend.PrepareNamedSelect(tx, emailQuery)
+	emailNamed.Stmt.Mapper = backend.readerMapper
 	if err != nil {
 		return nil, err
 	}
 
-	enrolmentNamed, err := tx.PrepareNamed(enrolmentQuery)
+	enrolmentNamed, err := backend.PrepareNamedSelect(tx, enrolmentQuery)
+	enrolmentNamed.Stmt.Mapper = backend.readerMapper
 	if err != nil {
 		return nil, err
 	}
