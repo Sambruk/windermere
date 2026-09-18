@@ -82,7 +82,7 @@ func New(backingType, backingSource string, tenantGetter scimserverlite.TenantGe
 		db.SetMaxOpenConns(10)
 		db.SetMaxIdleConns(10)
 
-		sqlBackend, err := NewSQLBackend(db, parser)
+		sqlBackend, err := NewSQLBackend(db, parser, true)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize SQL backend: %v", err)

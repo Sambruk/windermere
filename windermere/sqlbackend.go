@@ -42,9 +42,11 @@ type SQLBackend struct {
 }
 
 // NewSQLBackend creates a new SQLBackend
-func NewSQLBackend(d *sqlx.DB, op ObjectParser) (backend *SQLBackend, err error) {
+// retryConnection indicates whether the backend should retry connecting to the database if the initial connection fails.
+// If false, the backend will return an error immediately if the initial connection fails.
+func NewSQLBackend(d *sqlx.DB, op ObjectParser, retryConnection bool) (backend *SQLBackend, err error) {
 	backend = &SQLBackend{db: d, objectParser: op}
-	err = backend.initSchema()
+	err = backend.initSchema(retryConnection)
 	if err != nil {
 		return nil, err
 	}
@@ -261,11 +263,14 @@ func expandDriverSpecificTypes(driverName, schema string) string {
 	return expander(schema)
 }
 
-func (backend *SQLBackend) initSchema() error {
+func (backend *SQLBackend) initSchema(retryConnection bool) error {
 	// Ensure we have a working connection since any error in
 	// getDBVersion is interpreted as an uninitialized database.
 	const waitTime = 5 * time.Second
 	for err := backend.db.Ping(); err != nil; err = backend.db.Ping() {
+		if !retryConnection {
+			return fmt.Errorf("failed to connect to database: %v", err)
+		}
 		log.Printf("Failed to connect to database: %v", err)
 		log.Printf("Will retry in %d seconds", waitTime/time.Second)
 		time.Sleep(waitTime)
