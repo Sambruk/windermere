@@ -25,12 +25,14 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/Sambruk/windermere/scimserverlite"
 	scim "github.com/Sambruk/windermere/scimserverlite"
 	"github.com/Sambruk/windermere/ss12000v1"
 	"github.com/jmoiron/sqlx"
+	"github.com/jmoiron/sqlx/reflectx"
 )
 
 type ObjectParser func(resourceType, resource string) (ss12000v1.Object, error)
@@ -39,6 +41,21 @@ type ObjectParser func(resourceType, resource string) (ss12000v1.Object, error)
 type SQLBackend struct {
 	db           *sqlx.DB
 	objectParser ObjectParser
+}
+
+// lowerCaseReadMapper is used to map struct fields to lower case column names for PostgreSQL.
+var lowerCaseReadMapper = reflectx.NewMapperFunc("", strings.ToLower)
+
+// configureReadMapper sets a custom read mapper for the given transaction if the database is PostgreSQL.
+// We'll call this before performing SQL queries which will scan SQL rows to struct fields.
+// We can unfortunately not set it permanently on the db object because it affects named parameter
+// queries as well then, such as INSERT/UPDATE (trying to match :displayName against displayname and failing).
+// The mapper is currently set in GetParsedResources and GetParsedResource since those are the points where
+// we scan SQL rows into struct fields.
+func (backend *SQLBackend) configureReadMapper(tx *sqlx.Tx) {
+	if backend.db.DriverName() == "postgres" {
+		tx.Mapper = lowerCaseReadMapper
+	}
 }
 
 // NewSQLBackend creates a new SQLBackend
@@ -137,7 +154,7 @@ var migrations = [...]string{
 		tenant {{NVARCHAR}}(255) NOT NULL,
 		userId VARCHAR(36) NOT NULL,
 		value VARCHAR(36) NOT NULL,
-		schoolYear TINYINT NULL,
+		schoolYear {{TINYINT}} NULL,
 		FOREIGN KEY (tenant, userId) REFERENCES Users(tenant, id) ON DELETE CASCADE
 	);
 
@@ -257,11 +274,15 @@ func expandDriverSpecificTypes(driverName, schema string) string {
 	// Default expansion simply removes curly brackets
 	expander := removeCurlies
 
-	if driverName == "mysql" {
+	if driverName == "mysql" || driverName == "postgres" {
 		// For MySQL we'll replace NTEXT and NVARCHAR with TEXT and VARCHAR
 		expander = func(schema string) string {
 			re := regexp.MustCompile(`{{N(.*?)}}`)
-			return removeCurlies(string(re.ReplaceAll([]byte(schema), []byte("$1"))))
+			schema = string(re.ReplaceAll([]byte(schema), []byte("$1")))
+			if driverName == "postgres" {
+				schema = string(regexp.MustCompile(`{{TINYINT}}`).ReplaceAll([]byte(schema), []byte("SMALLINT")))
+			}
+			return removeCurlies(schema)
 		}
 	}
 	return expander(schema)
@@ -305,7 +326,10 @@ func (backend *SQLBackend) initSchema(retryConnection bool) error {
 	}
 
 	// Set the current schema version
-	tx.NamedExec(`UPDATE windermere_meta SET version = :version`, map[string]interface{}{"version": currentSchemaVersion()})
+	_, err = tx.NamedExec(`UPDATE windermere_meta SET version = :version`, map[string]interface{}{"version": currentSchemaVersion()})
+	if err != nil {
+		return err
+	}
 
 	err = tx.Commit()
 	if err != nil {
@@ -617,6 +641,7 @@ func (backend *SQLBackend) GetParsedResources(tenant, resourceType string) (map[
 	if err != nil {
 		return nil, err
 	}
+	backend.configureReadMapper(tx)
 
 	defer tx.Rollback()
 
@@ -651,6 +676,7 @@ func (backend *SQLBackend) GetParsedResource(tenant, resourceType string, id str
 	if err != nil {
 		return nil, err
 	}
+	backend.configureReadMapper(tx)
 
 	defer tx.Rollback()
 
