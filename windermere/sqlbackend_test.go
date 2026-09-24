@@ -75,7 +75,10 @@ func sqlDriverCleanupTables(sqlTestFixture *sqltestfixture) error {
 	}
 	tx := sqlTestFixture.db.MustBegin()
 	for _, table := range tablesForClearTenant {
-		_ = tx.MustExec("DELETE from " + string(table))
+		_, err := tx.Exec("DELETE from " + string(table))
+		if err != nil {
+			return fmt.Errorf("error when cleaning the database: %s", err)
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("error when cleaning the database: %s", err)
@@ -97,9 +100,12 @@ func sqlDriverTest(t *testing.T, test func(t *testing.T, sqlTestFixture *sqltest
 		driverName := driver[0]
 		dsn := driver[1]
 		t.Run(driverName, func(t *testing.T) {
-			t.Parallel()
 			f := startTest(t, driverName, dsn)
-			defer sqlDriverCleanupTables(f)
+			defer func() {
+				if err := sqlDriverCleanupTables(f); err != nil {
+					t.Errorf("Failed to clean up SQL test tables: %s", err)
+				}
+			}()
 			test(t, f)
 		})
 	}
@@ -338,10 +344,10 @@ func startTest(t *testing.T, driverName, dsn string) *sqltestfixture {
 	initOnce.Do(initTestData)
 	var f sqltestfixture
 	db, err := sqlx.Open(driverName, dsn)
-	test.Ensure(t, err)
+	test.Require(t, err)
 	parser := validatingObjectParser(CreateOptionalValidator(true, true), objectParser)
-	b, err := NewSQLBackend(db, parser, false)
-	test.Ensure(t, err)
+	b, err := newSQLBackend(db, parser, false)
+	test.Require(t, err)
 	f.b = b
 	f.db = db
 	return &f
@@ -563,6 +569,19 @@ func TestIdentity(t *testing.T) {
 		roundTrip(tenant1, "Employments", string(body), bajeEmpCopy.GetID(), &bajeEmpCopy, false)
 
 		roundTrip(tenant1, "Activities", grupp2ActivityJSON, grupp2Activity.GetID(), &grupp2Activity, true)
+
+		var liniCopy ss12000v1.User
+		json.Unmarshal([]byte(liniJSON), &liniCopy)
+		liniCopy.Name.FamilyName = "Åkerlund-Örn"
+		liniCopy.DisplayName = "Lisa Åkerlund-Örn"
+		body, _ = json.Marshal(&liniCopy)
+		roundTrip(tenant1, "Users", string(body), liniCopy.GetID(), &liniCopy, false)
+
+		var grupp1Copy ss12000v1.StudentGroup
+		json.Unmarshal([]byte(grupp1JSON), &grupp1Copy)
+		grupp1Copy.DisplayName = "Grupp för åk 4-6, Ö-vik"
+		body, _ = json.Marshal(&grupp1Copy)
+		roundTrip(tenant1, "StudentGroups", string(body), grupp1Copy.GetID(), &grupp1Copy, false)
 	})
 }
 
