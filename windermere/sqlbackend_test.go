@@ -569,6 +569,19 @@ func TestIdentity(t *testing.T) {
 		roundTrip(tenant1, "Employments", string(body), bajeEmpCopy.GetID(), &bajeEmpCopy, false)
 
 		roundTrip(tenant1, "Activities", grupp2ActivityJSON, grupp2Activity.GetID(), &grupp2Activity, true)
+
+		var liniCopy ss12000v1.User
+		json.Unmarshal([]byte(liniJSON), &liniCopy)
+		liniCopy.Name.FamilyName = "Åkerlund-Örn"
+		liniCopy.DisplayName = "Lisa Åkerlund-Örn"
+		body, _ = json.Marshal(&liniCopy)
+		roundTrip(tenant1, "Users", string(body), liniCopy.GetID(), &liniCopy, false)
+
+		var grupp1Copy ss12000v1.StudentGroup
+		json.Unmarshal([]byte(grupp1JSON), &grupp1Copy)
+		grupp1Copy.DisplayName = "Grupp för åk 4-6, Ö-vik"
+		body, _ = json.Marshal(&grupp1Copy)
+		roundTrip(tenant1, "StudentGroups", string(body), grupp1Copy.GetID(), &grupp1Copy, false)
 	})
 }
 
