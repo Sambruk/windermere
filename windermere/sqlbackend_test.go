@@ -99,7 +99,11 @@ func sqlDriverTest(t *testing.T, test func(t *testing.T, sqlTestFixture *sqltest
 		t.Run(driverName, func(t *testing.T) {
 			t.Parallel()
 			f := startTest(t, driverName, dsn)
-			defer sqlDriverCleanupTables(f)
+			defer func() {
+				if err := sqlDriverCleanupTables(f); err != nil {
+					t.Errorf("Failed to clean up SQL test tables: %s", err)
+				}
+			}()
 			test(t, f)
 		})
 	}
