@@ -37,7 +37,13 @@ jobs:
     - name: Start test databases
       if: runner.os == 'Linux'
       working-directory: ./testdbs
-      run: docker compose up -d --wait
+      run: docker compose up -d --wait mysql mssql postgres
+
+    # One-shot job with no healthcheck, so it's run (and waited on) separately from --wait
+    - name: Initialize MSSQL test database
+      if: runner.os == 'Linux'
+      working-directory: ./testdbs
+      run: docker compose up mssql-init
 
     - name: Test
       run: go test -v ./...
