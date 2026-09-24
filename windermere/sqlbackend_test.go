@@ -75,7 +75,10 @@ func sqlDriverCleanupTables(sqlTestFixture *sqltestfixture) error {
 	}
 	tx := sqlTestFixture.db.MustBegin()
 	for _, table := range tablesForClearTenant {
-		_ = tx.MustExec("DELETE from " + string(table))
+		_, err := tx.Exec("DELETE from " + string(table))
+		if err != nil {
+			return fmt.Errorf("error when cleaning the database: %s", err)
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("error when cleaning the database: %s", err)
@@ -97,7 +100,6 @@ func sqlDriverTest(t *testing.T, test func(t *testing.T, sqlTestFixture *sqltest
 		driverName := driver[0]
 		dsn := driver[1]
 		t.Run(driverName, func(t *testing.T) {
-			t.Parallel()
 			f := startTest(t, driverName, dsn)
 			defer func() {
 				if err := sqlDriverCleanupTables(f); err != nil {
