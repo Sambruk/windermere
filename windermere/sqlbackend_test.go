@@ -340,7 +340,7 @@ func startTest(t *testing.T, driverName, dsn string) *sqltestfixture {
 	db, err := sqlx.Open(driverName, dsn)
 	test.Ensure(t, err)
 	parser := validatingObjectParser(CreateOptionalValidator(true, true), objectParser)
-	b, err := NewSQLBackend(db, parser, false)
+	b, err := newSQLBackend(db, parser, false)
 	test.Ensure(t, err)
 	f.b = b
 	f.db = db
