@@ -33,8 +33,27 @@ jobs:
       working-directory: ./cmd/windermere
       run: go build -v
 
+    # DB images are Linux-only, so the Windows runner falls back to the default SQLite testing
+    - name: Start test databases
+      if: runner.os == 'Linux'
+      working-directory: ./testdbs
+      run: docker compose up -d --wait mysql mssql postgres
+
+    # One-shot job with no healthcheck, so it's run (and waited on) separately from --wait
+    - name: Initialize MSSQL test database
+      if: runner.os == 'Linux'
+      working-directory: ./testdbs
+      run: docker compose up mssql-init
+
     - name: Test
       run: go test -v ./...
+      env:
+        WINDERMERE_TEST_DB_DRIVERS: ${{ runner.os == 'Linux' && 'sqlite://:memory:;mysql://root:windermere@tcp(127.0.0.1:3306)/windermere?multiStatements=true;sqlserver://sa:Windermere1!@127.0.0.1:1433?database=windermere;postgres://windermere:windermere@127.0.0.1:5432/windermere?sslmode=disable' || '' }}
+
+    - name: Stop test databases
+      if: always() && runner.os == 'Linux'
+      working-directory: ./testdbs
+      run: docker compose down -v
 
     - name: Archive code coverage results
       uses: actions/upload-artifact@v4

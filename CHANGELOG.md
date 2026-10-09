@@ -1,5 +1,9 @@
 ## Releases
 
+## Unreleased
+#### Features
+  - PostgreSQL support (#56)
+
 ## 1.3.2 (2026-04-17)
   - Bowness upgraded to v1.2.1. This was due to a security review of Bowness.
     The security related findings in Bowness had to do with robustness and
