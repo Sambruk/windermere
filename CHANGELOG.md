@@ -1,6 +1,6 @@
 ## Releases
 
-## Unreleased
+## 1.4.0 (2026-10-09)
 #### Features
   - PostgreSQL support (#56)
 
